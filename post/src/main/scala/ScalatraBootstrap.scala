@@ -5,7 +5,7 @@ import org.scalatra.LifeCycle
 
 class ScalatraBootstrap extends LifeCycle {
 
-  implicit val system = ActorSystem()
+  implicit val system = ActorSystem("webalytics-api")
 
   override def init(context: ServletContext) {
     context.mount(new Servlet(), "/")

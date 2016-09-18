@@ -13,7 +13,6 @@ object Main extends App {
   context.setResourceBase("src/main/webapp")
   context.addEventListener(new ScalatraListener)
   context.addServlet(classOf[DefaultServlet], "/")
-  context.setAttribute("pi",args(0))
   server.setHandler(context)
   server.start()
   server.join()

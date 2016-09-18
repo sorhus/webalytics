@@ -1,5 +1,7 @@
 package com.github.sorhus.webalytics.post
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.util.ByteString
 import redis.commands.TransactionBuilder
@@ -8,7 +10,6 @@ import redis.protocol.MultiBulk
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
-import scala.util.Random
 
 class Redis(implicit akkaSystem: ActorSystem) {
 
@@ -20,7 +21,7 @@ class Redis(implicit akkaSystem: ActorSystem) {
   def values(dimension: String) = s"${r}values$r$dimension$r"
   val next_element = s"${r}next_element$r"
 
-  private def getRandomKey = Random.nextString(32) // TODO reimplement
+  private def getRandomKey = UUID.randomUUID().toString
 
   private def getDocumentId(element_id: String): Long = {
     val result: Future[Long] = redis.hget(elements, element_id).flatMap{
@@ -32,7 +33,7 @@ class Redis(implicit akkaSystem: ActorSystem) {
         id
       }
     }
-    Await.result(result, 1.second)
+    Await.result(result, Duration.Inf)
   }
 
   def post(bucket: String, element_id: String)(data: Map[String,List[String]]): Future[MultiBulk] = {
@@ -49,18 +50,22 @@ class Redis(implicit akkaSystem: ActorSystem) {
     transaction.exec()
   }
 
-  private def getKey(bucket: String, dimension: String, value: String) = {
+  def getKey(bucket: String, dimension: String, value: String) = {
     s"$bucket$r$dimension$r$value"
   }
 
   private def getAudience(filter: Filter) = {
     val transaction = redis.transaction()
-    val ored = filter.map{ ands: List[Map[String, Map[String, String]]] =>
+    val ored = filter.map{ ands: List[Map[String, Map[String, List[String]]]] =>
       val destination = getRandomKey
-      ands.map{ ors: Map[String, Map[String, String]] =>
+      ands.map{ ors: Map[String, Map[String, List[String]]] =>
         val keys = ors.flatMap{case(bucket, dimvals) =>
-          dimvals.map{case(dimension, value) =>
-            getKey(bucket, dimension, value)
+          dimvals.flatMap{
+            case(dimension, "*" :: Nil) =>
+              getDimensionValues(dimension :: Nil).flatMap(_._2)
+               .map(value => getKey(bucket, dimension, value))
+            case(dimension, values) =>
+              values.map(value => getKey(bucket, dimension, value))
           }
         }
         transaction.bitopOR(destination, keys.toSeq:_*)
@@ -81,20 +86,14 @@ class Redis(implicit akkaSystem: ActorSystem) {
     }
     transaction.exec()
     futures.map{case(dimension, values) =>
-      dimension -> Await.result(values, 1.second)
+      dimension -> Await.result(values, Duration.Inf)
     }
   }
 
-  // TODO do this with scalaz?
-  def getUniques(query: Query) = {
-
-    val audience = getAudience(query.filter)
-
-    val dimvals = getDimensionValues(query.dimensions)
-
+  private def getCounts(audience: String, dimVals: List[(String, Seq[String])], buckets: List[String]): List[(String, List[(String, Seq[(String, Future[Long])])])] = {
     val transaction = redis.transaction()
-    val result: List[(String, List[(String, Seq[(String, Future[Long])])])] = query.buckets.map{ bucket =>
-      bucket -> dimvals.map{case(dimension, values) =>
+    val result = buckets.map{ bucket =>
+      bucket -> dimVals.map{case(dimension, values) =>
         dimension -> values.map{value =>
           val destination = getRandomKey
           transaction.bitopAND(destination, audience, getKey(bucket, dimension, value))
@@ -106,13 +105,34 @@ class Redis(implicit akkaSystem: ActorSystem) {
     }
     transaction.del(audience)
     transaction.exec()
+    result
+  }
 
-    result.map{case(k1,v1) =>
+  // TODO do this with scalaz?
+  def getCount(query: Query) = {
+
+    val audience = getAudience(query.filter)
+
+    val dimvals = query.dimensions match{
+      case "*" :: Nil =>
+        val allDimensions: List[String] = Await.result(redis.smembers(dimensions), Duration.Inf).map(_.utf8String).toList
+        getDimensionValues(allDimensions)
+      case list =>
+        getDimensionValues(query.dimensions)
+    }
+
+    val counts = getCounts(audience, dimvals, query.buckets)
+
+    counts.map{case(k1,v1) =>
       k1 -> v1.map{case(k2,v2) =>
         k2 -> v2.map{case(k3,v3) =>
-          k3 -> Await.result(v3, 1.second)
+          k3 -> Await.result(v3, Duration.Inf)
         }
       }
     }
+  }
+
+  def isEmpty(): Boolean = {
+    Await.result(redis.keys("*"), Duration.Inf).size == 0
   }
 }

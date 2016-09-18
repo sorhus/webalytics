@@ -10,26 +10,26 @@ import redis.protocol.MultiBulk
 import scala.concurrent.{Future, ExecutionContext}
 import scala.util.Try
 
-case class Query(`type`: String, filter: Filter, buckets: List[String], dimensions: List[String])
+case class Query(filter: Filter, buckets: List[String], dimensions: List[String])
 
 class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
 
-  val redis = new Redis()
+  val dao = new Redis()
 
   override protected implicit def executor: ExecutionContext = system.dispatcher
-  protected implicit val jsonFormats: Formats = DefaultFormats
+  implicit val jsonFormats: Formats = DefaultFormats
 
   val bucket = "bucket"
   val element_id = "element_id"
 
-  def getData(params: Params) = Try {
+  def getElement(params: Params) = Try {
       params
         .keys
         .filter(k => k != bucket && k != element_id)
         .head
     }
     .map(json  => parse(json))
-    .map(_.extract[Map[String,List[String]]])
+    .map(_.extract[Element])
     .toOption
 
   def getQuery(params: Params) = Try {
@@ -41,30 +41,32 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
   .map(_.extract[Query])
   .toOption
 
+  // example request
+  // curl -g -XPOST localhost:8080/post/user/dc415c6b-5564-40b9-95bb-ebdf0d1560e4 -d '{"section":["3f063265","673a3a2d"],"referrer":["twitter"]}'
   post(s"/post/:$bucket/:$element_id") {
     new AsyncResult {
       val is: Future[String] = {
         val b = params(bucket)
         val e = params(element_id)
-        val data = getData(params)
-        println(data)
-        val post: Option[Future[MultiBulk]] = data.map(redis.post(b, e))
+        val data = getElement(params)
+        val post: Option[Future[MultiBulk]] = data.map(dao.post(b, e))
         if(post.isEmpty) {
-          Future("error\n")
+          Future("error")
         } else {
-          Future("ok\n")
-//          post.get.map(_.toByteString.utf8String)
+          Future.successful("") // TODO be more rigorous
         }
       }
     }
   }
 
+  // example request
+  // curl -XPOST localhost:8080/count -d '{"filter":[[{"user":{"referrer":["*"],"section":["*"]}}]],"buckets":["user"],"dimensions":["*"]}'
   post(s"/count") {
     new AsyncResult {
       val is: Future[String] = Future {
         val query = getQuery(params)
         println(query)
-        query.map(redis.getUniques)
+        query.map(dao.getCount)
           .map(r => Serialization.write(r))
           .getOrElse("error")
       }
