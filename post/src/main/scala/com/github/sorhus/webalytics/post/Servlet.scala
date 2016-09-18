@@ -10,7 +10,7 @@ import redis.protocol.MultiBulk
 import scala.concurrent.{Future, ExecutionContext}
 import scala.util.Try
 
-case class Query(`type`: String, filter: List[List[Map[String, Map[String,String]]]], buckets: List[String], dimensions: List[String])
+case class Query(`type`: String, filter: Filter, buckets: List[String], dimensions: List[String])
 
 class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
 
