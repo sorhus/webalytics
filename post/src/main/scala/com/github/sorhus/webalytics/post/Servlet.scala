@@ -10,11 +10,9 @@ import redis.protocol.MultiBulk
 import scala.concurrent.{Future, ExecutionContext}
 import scala.util.Try
 
-case class Query(filter: Filter, buckets: List[String], dimensions: List[String])
-
 class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
 
-  val dao = new Redis()
+  val dao = new Dao()
 
   override protected implicit def executor: ExecutionContext = system.dispatcher
   implicit val jsonFormats: Formats = DefaultFormats
@@ -64,7 +62,7 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
   post(s"/count") {
     new AsyncResult {
       val is: Future[String] = Future {
-        val query = getQuery(params)
+        val query: Option[Query] = getQuery(params)
         println(query)
         query.map(dao.getCount)
           .map(r => Serialization.write(r))

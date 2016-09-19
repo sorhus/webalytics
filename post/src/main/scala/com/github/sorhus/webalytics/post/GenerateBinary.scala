@@ -21,8 +21,8 @@ object GenerateBinary extends App {
         .withValue("akka.stdout-loglevel", ConfigValueFactory.fromAnyRef("OFF"))
       ActorSystem("webalytics-generate-binary", config)
     }
-    val redis = new Redis
-    if(!redis.isEmpty()) {
+    val redis = new Dao
+    if(!redis.isEmpty) {
       println("Redis is not empty, exiting")
       System.exit(1)
     }
@@ -63,9 +63,9 @@ object GenerateBinary extends App {
 
 
   {
-    redis.api.strings.Set(dao.next_element, nDocuments) ::
+    redis.api.strings.Set(dao.next_element(bucket), nDocuments) ::
     Sadd(dao.dimensions, dimensionValues.keys.toSeq) ::
-      Hmset(dao.elements, elements.toMap) ::
+      Hmset(dao.elements(bucket), elements.toMap) ::
       Sadd(dao.buckets, bucket :: Nil) ::
       dimensionValues.flatMap{case(dimension, values) =>
         if(values.nonEmpty)
@@ -74,7 +74,7 @@ object GenerateBinary extends App {
           Nil
       }.toList
   }
-  .map(_.encodedRequest.decodeString("utf-8"))
+  .map(cmd => cmd.encodedRequest.decodeString("utf-8"))
   .foreach(out.write)
 
   in.close()

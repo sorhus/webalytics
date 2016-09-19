@@ -1,0 +1,43 @@
+mvn scala:cc
+mvn -pl post jetty:run
+
+curl -g -XPOST localhost:8080/post/user/dc415c6b-5564-40b9-95bb-ebdf0d1560e4 -d '
+{
+  "section":["3f063265","673a3a2d"],
+  "referrer":["twitter"]
+}'
+
+curl -XPOST localhost:8080/count -d '
+{
+  "filter":[
+    [{
+      "user":{
+        "referrer":["twitter"]
+      }
+    }]
+  ],
+  "buckets":["user"],
+  "dimensions":["*"]
+}'
+
+curl -XPOST localhost:8080/count -d '
+{
+  "filter":[
+    [{
+      "user":{
+        "referrer":["twitter"]
+      }
+    }],
+    [{
+      "user":{
+        "referrer":["facebook"]
+      }
+    }]
+  ],
+  "buckets":["user"],
+  "dimensions":["*"]
+}'
+
+
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.post.GenerateData 100 20 2> stats > data
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.post.GenerateBinary data user | redis-cli --pipe

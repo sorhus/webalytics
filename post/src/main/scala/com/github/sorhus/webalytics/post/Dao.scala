@@ -3,7 +3,6 @@ package com.github.sorhus.webalytics.post
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.util.ByteString
 import redis.commands.TransactionBuilder
 import redis.RedisClient
 import redis.protocol.MultiBulk
@@ -11,25 +10,25 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 
-class Redis(implicit akkaSystem: ActorSystem) {
+class Dao(implicit akkaSystem: ActorSystem) {
 
   val redis = RedisClient()
   val r = "_" // reserved char
   val buckets = s"${r}buckets$r"
-  val elements = s"${r}elements$r"
   val dimensions = s"${r}dimensions$r"
   def values(dimension: String) = s"${r}values$r$dimension$r"
-  val next_element = s"${r}next_element$r"
+  def elements(bucket: String) = s"${r}$bucket${r}elements$r"
+  def next_element(bucket: String) = s"${r}$bucket${r}next_element$r"
 
   private def getRandomKey = UUID.randomUUID().toString
 
-  private def getDocumentId(element_id: String): Long = {
-    val result: Future[Long] = redis.hget(elements, element_id).flatMap{
+  private def getDocumentId(bucket: String, element_id: String): Long = {
+    val result: Future[Long] = redis.hget(elements(bucket), element_id).flatMap{
       case(Some(document_id)) => Future{
         document_id.utf8String.toLong
       }
-      case None => redis.incr(next_element).map{ id: Long =>
-        redis.hset(elements, element_id, id)
+      case None => redis.incr(next_element(bucket)).map{ id: Long =>
+        redis.hset(elements(bucket), element_id, id)
         id
       }
     }
@@ -37,7 +36,7 @@ class Redis(implicit akkaSystem: ActorSystem) {
   }
 
   def post(bucket: String, element_id: String)(data: Map[String,List[String]]): Future[MultiBulk] = {
-    val document_id: Long = getDocumentId(element_id)
+    val document_id: Long = getDocumentId(bucket, element_id)
     val transaction: TransactionBuilder = redis.transaction()
     transaction.sadd(buckets, bucket)
     data.foreach{case(dimension, vals) =>
@@ -50,9 +49,7 @@ class Redis(implicit akkaSystem: ActorSystem) {
     transaction.exec()
   }
 
-  def getKey(bucket: String, dimension: String, value: String) = {
-    s"$bucket$r$dimension$r$value"
-  }
+  def getKey(bucket: String, dimension: String, value: String) = s"$bucket$r$dimension$r$value"
 
   private def getAudience(filter: Filter) = {
     val transaction = redis.transaction()
@@ -80,14 +77,23 @@ class Redis(implicit akkaSystem: ActorSystem) {
   }
 
   private def getDimensionValues(dimensions: List[String]): List[(String, Seq[String])] = {
-    val transaction = redis.transaction()
-    val futures: List[(String, Future[Seq[String]])] = dimensions.map{ dimension =>
-      dimension -> transaction.smembers(values(dimension)).map(seq => seq.map(_.utf8String))
+    def getValues(dimensions: List[String]) = {
+      val transaction = redis.transaction()
+      val futures: List[(String, Future[Seq[String]])] = dimensions.map{ dimension =>
+        dimension -> transaction.smembers(values(dimension)).map(seq => seq.map(_.utf8String))
+      }
+      transaction.exec()
+      futures.map{case(dimension, values) =>
+        dimension -> Await.result(values, Duration.Inf)
+      }
     }
-    transaction.exec()
-    futures.map{case(dimension, values) =>
-      dimension -> Await.result(values, Duration.Inf)
+
+    val input = dimensions match {
+      case "*" :: Nil => Await.result(redis.smembers(this.dimensions), Duration.Inf).map(_.utf8String).toList
+      case _ => dimensions
     }
+
+    getValues(input)
   }
 
   private def getCounts(audience: String, dimVals: List[(String, Seq[String])], buckets: List[String]): List[(String, List[(String, Seq[(String, Future[Long])])])] = {
@@ -110,19 +116,9 @@ class Redis(implicit akkaSystem: ActorSystem) {
 
   // TODO do this with scalaz?
   def getCount(query: Query) = {
-
     val audience = getAudience(query.filter)
-
-    val dimvals = query.dimensions match{
-      case "*" :: Nil =>
-        val allDimensions: List[String] = Await.result(redis.smembers(dimensions), Duration.Inf).map(_.utf8String).toList
-        getDimensionValues(allDimensions)
-      case list =>
-        getDimensionValues(query.dimensions)
-    }
-
-    val counts = getCounts(audience, dimvals, query.buckets)
-
+    val dimensionValues = getDimensionValues(query.dimensions)
+    val counts = getCounts(audience, dimensionValues, query.buckets)
     counts.map{case(k1,v1) =>
       k1 -> v1.map{case(k2,v2) =>
         k2 -> v2.map{case(k3,v3) =>
@@ -132,7 +128,5 @@ class Redis(implicit akkaSystem: ActorSystem) {
     }
   }
 
-  def isEmpty(): Boolean = {
-    Await.result(redis.keys("*"), Duration.Inf).size == 0
-  }
+  def isEmpty: Boolean = Await.result(redis.keys("*"), Duration.Inf).isEmpty
 }
