@@ -39,5 +39,5 @@ curl -XPOST localhost:8080/count -d '
 }'
 
 
-java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.post.GenerateData 100 20 2> stats > data
+java -cp post/target/post-0.1.0.jar scala.com.github.sorhus.webalytics.generate.GenerateData 100 20 2> stats > data
 java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.post.GenerateBinary data user | redis-cli --pipe
