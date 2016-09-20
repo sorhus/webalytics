@@ -18,7 +18,7 @@ object ConvertToRaw extends App {
   val bucket = args(1)
   val in = new BufferedReader(new FileReader(file))
   val out = new BufferedWriter(new OutputStreamWriter(System.out))
-  new ConvertToRaw(bucket, in, out)
+  new ConvertToRaw(bucket, in, out).run
 }
 
 class ConvertToRaw(bucket: String, in: BufferedReader, out: BufferedWriter) extends Runnable {

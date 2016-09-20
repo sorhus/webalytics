@@ -19,7 +19,7 @@ object GenerateData extends App {
   val out = new BufferedWriter(new OutputStreamWriter(System.out))
   val err = new BufferedWriter(new OutputStreamWriter(System.err))
 
-  new GenerateData(nElements, nDimensions, nValues, bulkFormat, out, err)
+  new GenerateData(nElements, nDimensions, nValues, bulkFormat, out, err).run
 }
 
 class GenerateData(nElements: Int, nDimensions: Int, nValues: Int, bulkFormat: Boolean, out: BufferedWriter, err: BufferedWriter) extends Runnable {
