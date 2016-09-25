@@ -73,7 +73,6 @@ class RedisDao(implicit akkaSystem: ActorSystem) extends AudienceDao {
     result
   }
 
-  // TODO do this with scalaz?
   override def getCount(query: Query)(implicit metaDao: MetaDao): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
     val audience = getAudience(query.filter)
     val dimensionValues = metaDao.getDimensionValues(query.dimensions)

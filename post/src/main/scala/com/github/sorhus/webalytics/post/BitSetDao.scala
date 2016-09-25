@@ -5,7 +5,7 @@ import scala.util.Try
 import scala.collection.mutable.{Map => MMap}
 
 case class BitSet(bs: SparseBitSet) {
-  def set(bit: Long, flag: Boolean): Unit = bs.set(bit.toInt, flag)
+  def set(bit: Long, value: Boolean): Unit = bs.set(bit.toInt, value)
   def and(that: BitSet): Unit = bs.and(that.bs)
   def or(that: BitSet): Unit = bs.or(that.bs)
   def cardinality(): Long = bs.cardinality()
@@ -20,7 +20,7 @@ class BitSetDao extends AudienceDao {
 
   private val bitsets = MMap[Bucket,MMap[Dimension,MMap[Value, BitSet]]]()
 
-  def debug = {
+  def debug() = {
     bitsets.foreach{case (bucket, elements) =>
       elements.foreach{case (dimension, values) =>
         values.foreach{case(value, bitset) =>
@@ -39,7 +39,7 @@ class BitSetDao extends AudienceDao {
       values.foreach{ value =>
         metaDao.addMeta(bucket, element)
         val bs = bitsets(bucket)(dimension)(value)
-        this.synchronized(bs.set(documentId.toInt, true))
+        this.synchronized(bs.set(documentId.toInt, value = true))
       }
     }
   }
@@ -59,8 +59,8 @@ class BitSetDao extends AudienceDao {
   }
 
   private def getBitSets(query: Query)(implicit metaDao: MetaDao): Map[Bucket, Map[Dimension, Map[Value, BitSet]]] = {
-    val buckets: Set[Bucket] = query.filter.f.flatMap(_.flatten).map(_._1) ++ query.buckets toSet
-    val dimensionValues: Set[Element] = Element(metaDao.getDimensionValues(query.dimensions).toMap) :: query.filter.f.flatMap(_.flatten).map(_._2) toSet
+    val buckets: Set[Bucket] = query.filter.f.flatMap(_.flatten).map(_._1).toSet ++ query.buckets.toSet
+    val dimensionValues: List[Element] = Element(metaDao.getDimensionValues(query.dimensions).toMap) :: query.filter.f.flatMap(_.flatten).map(_._2)
     val all: Map[Bucket, Element] = buckets.map{ bucket =>
       val element = Element.merge(dimensionValues)
       bucket -> element

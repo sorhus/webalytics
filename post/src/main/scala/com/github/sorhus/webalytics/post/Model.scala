@@ -15,15 +15,21 @@ case class Element(e: Map[Dimension,List[Value]]) {
 }
 
 object Element {
-  def merge(dimensionValues: Set[Element]): Element = {
-    println(s"merging: $dimensionValues")
-    val x: Map[Dimension, List[Value]] = dimensionValues.flatMap(_.e.toList).groupBy{case(dimension,values) =>
-      dimension
-    }.mapValues(set => set.flatMap(_._2).toList)
+  def merge(dimensionValues: List[Element]): Element = {
 
-    val res = Element(x)
-    println(s"merged res: $res")
-    res
+    val grouped: Map[Dimension, List[(Dimension, List[Value])]] = dimensionValues
+      .flatMap(_.e.toList)
+      .groupBy{case(dimension,values) =>
+        dimension
+      }
+
+    val e: Map[Dimension, List[Value]] = grouped.mapValues{case(group) =>
+      group.flatMap{case(d, values) =>
+        values
+      }.distinct
+    }
+
+    Element(e)
   }
 }
 
@@ -52,7 +58,6 @@ case class JsonQuery(
   }
 }
 
-//List[(Bucket, List[(Dimension, List[(Value, Long)])])]
 object JsonResult {
   def fromResult(result: List[(Bucket, List[(Dimension, List[(Value, Long)])])]) = {
     result.map{case(bucket, dimensions) =>

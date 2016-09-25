@@ -14,8 +14,9 @@ object GenerateRaw extends App {
 
   val (pipeIn, pipeOut) = {
     val rawOut = new PipedOutputStream()
-    (new BufferedReader(new InputStreamReader(new PipedInputStream(rawOut))),
-      new BufferedWriter(new OutputStreamWriter(rawOut)))
+    val pipeIn = new BufferedReader(new InputStreamReader(new PipedInputStream(rawOut)))
+    val pipeOut = new BufferedWriter(new OutputStreamWriter(rawOut))
+    (pipeIn, pipeOut)
   }
 
   val generate = new GenerateData(nElements, nDimensions, nValues, true, pipeOut, stdErr)
