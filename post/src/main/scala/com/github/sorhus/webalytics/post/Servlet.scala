@@ -12,23 +12,41 @@ import scala.util.Try
 
 class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
 
-  val dao = new Dao()
+//  implicit val dao: AudienceDao = new RedisDao()
+  implicit val dao:  BitSetDao = new BitSetDao
+  implicit val metaDao: MetaDao = new RedisMetaDao()
 
   override protected implicit def executor: ExecutionContext = system.dispatcher
+
   implicit val jsonFormats: Formats = DefaultFormats
 
-  val bucket = "bucket"
-  val element_id = "element_id"
+  val bucket_ = "bucket"
+  val element_id_ = "element_id"
 
-  def getElement(params: Params) = Try {
+  def getElement(params: Params) = {
+    val x: Option[Map[String, List[String]]] = Try {
       params
         .keys
-        .filter(k => k != bucket && k != element_id)
+        .filter(k => k != bucket_ && k != element_id_)
         .head
     }
-    .map(json  => parse(json))
-    .map(_.extract[Element])
-    .toOption
+      .map(json => parse(json))
+      .map(_.extract[Map[String, List[String]]])
+      .toOption
+
+    val e: Option[Map[Dimension, List[Value]]] = x.map{ (s: Map[String, List[String]]) =>
+      s.map{case(dimension: String, values: List[String]) =>
+        Dimension(dimension) -> values.map(v => Value(v))
+      }
+    }
+
+    e.map(e => Element(e))
+
+  }
+
+  //    .map{case(dimension, values) =>
+  //      Dimension(dimension) -> values.map(v => Value.apply(v))
+  //    }
 
   def getQuery(params: Params) = Try {
     params
@@ -36,23 +54,21 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
       .head
   }
   .map(json => parse(json))
-  .map(_.extract[Query])
+  .map{json => json.extract[JsonQuery].toQuery}
   .toOption
 
   // example request
   // curl -g -XPOST localhost:8080/post/user/dc415c6b-5564-40b9-95bb-ebdf0d1560e4 -d '{"section":["3f063265","673a3a2d"],"referrer":["twitter"]}'
-  post(s"/post/:$bucket/:$element_id") {
+  post(s"/post/:${bucket_}/:$element_id_") {
     new AsyncResult {
       val is: Future[String] = {
-        val b = params(bucket)
-        val e = params(element_id)
-        val data = getElement(params)
-        val post: Option[Future[MultiBulk]] = data.map(dao.post(b, e))
-        if(post.isEmpty) {
-          Future("error")
-        } else {
-          Future.successful("") // TODO be more rigorous
-        }
+        val bucket = Bucket(params(bucket_))
+        val element_id = ElementId(params(element_id_))
+        val element: Option[Element] = getElement(params)
+        println(s"$bucket, $element_id, $element")
+        element.foreach(d => dao.post(bucket, element_id, d))
+        dao.debug
+        Future.successful("") // TODO be more rigorous
       }
     }
   }
@@ -62,10 +78,14 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
   post(s"/count") {
     new AsyncResult {
       val is: Future[String] = Future {
+        dao.debug
         val query: Option[Query] = getQuery(params)
         println(query)
         query.map(dao.getCount)
-          .map(r => Serialization.write(r))
+          .map{r =>
+            println(r)
+            Serialization.write(r)
+          }
           .getOrElse("error")
       }
     }
