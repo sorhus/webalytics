@@ -14,6 +14,19 @@ case class Element(e: Map[Dimension,List[Value]]) {
   }
 }
 
+object Element {
+  def merge(dimensionValues: Set[Element]): Element = {
+    println(s"merging: $dimensionValues")
+    val x: Map[Dimension, List[Value]] = dimensionValues.flatMap(_.e.toList).groupBy{case(dimension,values) =>
+      dimension
+    }.mapValues(set => set.flatMap(_._2).toList)
+
+    val res = Element(x)
+    println(s"merged res: $res")
+    res
+  }
+}
+
 case class JsonQuery(
   filter: List[List[Map[String, Map[String,List[String]]]]],
   buckets: List[String],
