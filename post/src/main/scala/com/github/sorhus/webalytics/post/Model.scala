@@ -1,10 +1,10 @@
 package com.github.sorhus.webalytics.post
 
-case class Bucket(x: String)
-case class Dimension(x: String)
-case class Value(x: String)
-case class ElementId(x: String)
-case class DocumentId(x: Long)
+case class Bucket(b: String)
+case class Dimension(d: String)
+case class Value(v: String)
+case class ElementId(e: String)
+case class DocumentId(d: Long)
 case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension])
 case class Filter(f: List[List[Map[Bucket, Element]]])
 
@@ -36,5 +36,18 @@ case class JsonQuery(
       buckets = buckets.map(Bucket.apply),
       dimensions = dimensions.map(Dimension.apply)
     )
+  }
+}
+
+//List[(Bucket, List[(Dimension, List[(Value, Long)])])]
+object JsonResult {
+  def fromResult(result: List[(Bucket, List[(Dimension, List[(Value, Long)])])]) = {
+    result.map{case(bucket, dimensions) =>
+      bucket.b -> dimensions.map{case(dimension, values) =>
+        dimension.d -> values.map{case(value, count) =>
+          value.v -> count
+        }
+      }
+    }
   }
 }

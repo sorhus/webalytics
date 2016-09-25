@@ -12,11 +12,12 @@ class BitSetDao extends AudienceDao {
     bitsets.foreach{ case (bucket, elements) =>
       elements.foreach{case (dimension, values) =>
         values.foreach{case(value, bitset) =>
-          println(s"${bucket.x} ${dimension.x} ${value.x}: ${bitset.cardinality()}")
+          println(s"${bucket.b} ${dimension.d} ${value.v}: ${bitset.cardinality()}")
         }
       }
     }
   }
+
   override def post(bucket: Bucket, element_id: ElementId, element: Element)(implicit metaDao: MetaDao): Unit = {
     metaDao.addMeta(bucket, element)
     val bitsets: Map[Bucket, Map[Dimension, Map[Value, SparseBitSet]]] = getBitSets(bucket, element)

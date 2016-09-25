@@ -19,12 +19,32 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
   override protected implicit def executor: ExecutionContext = system.dispatcher
 
   implicit val jsonFormats: Formats = DefaultFormats
+//  import implicit My
 
   val bucket_ = "bucket"
   val element_id_ = "element_id"
 
   def getElement(params: Params) = {
-    val x: Option[Map[String, List[String]]] = Try {
+//    val x: Option[Map[String, List[String]]] = Try {
+//      params
+//        .keys
+//        .filter(k => k != bucket_ && k != element_id_)
+//        .head
+//    }
+//      .map(json => parse(json))
+//      .map(_.extract[Map[String, List[String]]])
+//      .toOption
+//
+//    val e: Option[Map[Dimension, List[Value]]] = x.map{ (s: Map[String, List[String]]) =>
+//      s.map{case(dimension: String, values: List[String]) =>
+//        Dimension(dimension) -> values.map(v => Value(v))
+//      }
+//    }
+//
+//    e.map(e => Element(e))
+//
+
+    Try {
       params
         .keys
         .filter(k => k != bucket_ && k != element_id_)
@@ -33,20 +53,14 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
       .map(json => parse(json))
       .map(_.extract[Map[String, List[String]]])
       .toOption
-
-    val e: Option[Map[Dimension, List[Value]]] = x.map{ (s: Map[String, List[String]]) =>
-      s.map{case(dimension: String, values: List[String]) =>
-        Dimension(dimension) -> values.map(v => Value(v))
+      .map{ (s: Map[String, List[String]]) =>
+        s.map{case(dimension: String, values: List[String]) =>
+          Dimension(dimension) -> values.map(v => Value(v))
+        }
       }
-    }
-
-    e.map(e => Element(e))
+      .map(e => Element(e))
 
   }
-
-  //    .map{case(dimension, values) =>
-  //      Dimension(dimension) -> values.map(v => Value.apply(v))
-  //    }
 
   def getQuery(params: Params) = Try {
     params
@@ -82,6 +96,7 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
         val query: Option[Query] = getQuery(params)
         println(query)
         query.map(dao.getCount)
+          .map(JsonResult.fromResult)
           .map{r =>
             println(r)
             Serialization.write(r)

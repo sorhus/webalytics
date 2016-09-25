@@ -27,7 +27,7 @@ class RedisDao(implicit akkaSystem: ActorSystem) extends AudienceDao {
     transaction.exec()
   }
 
-  def getKey(bucket: Bucket, dimension: Dimension, value: Value) = s"${bucket.x}$r${dimension.x}$r${value.x}"
+  def getKey(bucket: Bucket, dimension: Dimension, value: Value) = s"${bucket.b}$r${dimension.d}$r${value.v}"
 
   private def getAudience(filter: Filter)(implicit metaDao: MetaDao) = {
     val transaction = redis.transaction()

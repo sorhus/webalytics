@@ -17,26 +17,26 @@ class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
   val redis: RedisClient = new RedisClient()
   val buckets = s"${r}buckets$r"
   val dimensions = s"${r}dimensions$r"
-  def values(dimension: Dimension) = s"${r}values$r${dimension.x}$r"
+  def values(dimension: Dimension) = s"${r}values$r${dimension.d}$r"
 
   override def addMeta(bucket: Bucket, element: Element) = {
     val transaction: TransactionBuilder = redis.transaction()
     element.e.foreach{case(dimension, vals) =>
-      transaction.sadd(dimensions, dimension.x)
+      transaction.sadd(dimensions, dimension.d)
       vals.foreach{value =>
-        transaction.sadd(values(dimension), value.x)
+        transaction.sadd(values(dimension), value.v)
       }
     }
     transaction.exec()
   }
 
   override def getDocumentId(element_id: ElementId): Long = {
-    val result: Future[Long] = redis.hget(elements, element_id.x).flatMap {
+    val result: Future[Long] = redis.hget(elements, element_id.e).flatMap {
       case (Some(document_id)) => Future {
         document_id.utf8String.toLong
       }
       case None => redis.incr(next_element).map { id: Long =>
-        redis.hset(elements, element_id.x, id)
+        redis.hset(elements, element_id.e, id)
         id
       }
     }
