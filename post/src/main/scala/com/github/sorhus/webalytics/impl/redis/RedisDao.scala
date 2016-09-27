@@ -1,10 +1,12 @@
-package com.github.sorhus.webalytics.post
+package com.github.sorhus.webalytics.impl.redis
 
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import redis.commands.TransactionBuilder
+import com.github.sorhus.webalytics.model._
 import redis.RedisClient
+import redis.commands.TransactionBuilder
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 

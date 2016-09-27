@@ -41,6 +41,14 @@
             <artifactId>rediscala_2.11</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.cb372</groupId>
+            <artifactId>scalacache-guava_2.11</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
         </dependency>
@@ -83,7 +91,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.github.sorhus.webalytics.post.Main</mainClass>
+                            <mainClass>com.github.sorhus.webalytics.api.Main</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

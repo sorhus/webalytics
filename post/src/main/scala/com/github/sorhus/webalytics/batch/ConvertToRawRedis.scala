@@ -1,9 +1,10 @@
-package com.github.sorhus.webalytics.generate
+package com.github.sorhus.webalytics.batch
 
 import java.io.{BufferedReader, BufferedWriter, FileReader, OutputStreamWriter}
 
 import akka.actor.ActorSystem
-import com.github.sorhus.webalytics.post._
+import com.github.sorhus.webalytics.impl.redis.{RedisDao, RedisMetaDao}
+import com.github.sorhus.webalytics.model.{Bucket, Dimension, Element}
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

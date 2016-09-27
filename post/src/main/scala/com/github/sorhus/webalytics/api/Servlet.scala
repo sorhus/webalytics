@@ -1,19 +1,25 @@
-package com.github.sorhus.webalytics.post
+package com.github.sorhus.webalytics.api
 
 import akka.actor.ActorSystem
+import com.github.sorhus.webalytics.impl.SparseBitSetWrapper
+import com.github.sorhus.webalytics.impl.redis.RedisMetaDao
+import com.github.sorhus.webalytics.model._
+import com.zaxxer.sparsebits.SparseBitSet
 import org.json4s.jackson.Serialization
-import org.scalatra.{Params, AsyncResult, FutureSupport, ScalatraServlet}
+import org.scalatra.{AsyncResult, FutureSupport, Params, ScalatraServlet}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.slf4j.LoggerFactory
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
+class Servlet(dao: AudienceDao)(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
 
+  val log = LoggerFactory.getLogger(getClass)
 //  implicit val dao: AudienceDao = new RedisDao()
-  implicit val dao: AudienceDao = new BitSetDao
-  implicit val metaDao: MetaDao = new RedisMetaDao()
+//  implicit val dao: AudienceDao = new BitsetDao[SparseBitSet](new SparseBitSetWrapper().create _)
+  implicit val metaDao: MetaDao = new CachedMetaDao(new RedisMetaDao())
 
   override protected implicit def executor: ExecutionContext = system.dispatcher
 
@@ -24,7 +30,7 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
   val element_id_ = "element_id"
 
   def getElement(params: Params) = {
-    Try {
+    val attempt = Try {
       params
         .keys
         .filter(k => k != bucket_ && k != element_id_)
@@ -32,7 +38,12 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
     }
       .map(json => parse(json))
       .map(_.extract[Map[String, List[String]]])
-      .toOption
+
+    if(attempt.isFailure) {
+      log.info("could not parse element", attempt.failed.get)
+    }
+
+    attempt.toOption
       .map{ (s: Map[String, List[String]]) =>
         s.map{case(dimension: String, values: List[String]) =>
           Dimension(dimension) -> values.map(v => Value(v))
@@ -71,13 +82,9 @@ class Servlet(implicit system: ActorSystem) extends ScalatraServlet with FutureS
     new AsyncResult {
       val is: Future[String] = Future {
         val query: Option[Query] = getQuery(params)
-        println(query)
         query.map(dao.getCount)
           .map(JsonResult.fromResult)
-          .map{r =>
-            println(r)
-            Serialization.write(r)
-          }
+          .map(res => Serialization.write(res))
           .getOrElse("error")
       }
     }

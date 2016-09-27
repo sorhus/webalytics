@@ -1,8 +1,9 @@
-package com.github.sorhus.webalytics.post
+package com.github.sorhus.webalytics.model
 
 trait AudienceDao {
 
   def post(bucket: Bucket, element_id: ElementId, element: Element)(implicit metaDao: MetaDao): Unit
+//  def post(bucket: Bucket, points: List[DataPoint])(implicit metaDao: MetaDao): Unit
 
   def getCount(query: Query)(implicit metaDao: MetaDao): List[(Bucket, List[(Dimension, List[(Value, Long)])])]
 }

@@ -1,12 +1,13 @@
-package com.github.sorhus.webalytics.post
+package com.github.sorhus.webalytics.impl.redis
 
 import akka.actor.ActorSystem
+import com.github.sorhus.webalytics.model._
 import redis.RedisClient
 import redis.commands.TransactionBuilder
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
 

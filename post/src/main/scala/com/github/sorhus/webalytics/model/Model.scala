@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.post
+package com.github.sorhus.webalytics.model
 
 case class Bucket(b: String)
 case class Dimension(d: String)
@@ -7,8 +7,10 @@ case class ElementId(e: String)
 case class DocumentId(d: Long)
 case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension])
 case class Filter(f: List[List[Map[Bucket, Element]]])
+case class DataPoint(elementId: ElementId, element: Element)
+case class Space(s: Map[Dimension, List[Value]])
 
-case class Element(e: Map[Dimension,List[Value]]) {
+case class Element(e: Map[Dimension, List[Value]]) {
   def ++(that: Element) = {
     copy(e = e ++ that.e)
   }
@@ -59,7 +61,7 @@ case class JsonQuery(
 }
 
 object JsonResult {
-  def fromResult(result: List[(Bucket, List[(Dimension, List[(Value, Long)])])]) = {
+  def fromResult(result: List[(Bucket, List[(Dimension, List[(Value, Long)])])]): List[(String, List[(String, List[(String, Long)])])] = {
     result.map{case(bucket, dimensions) =>
       bucket.b -> dimensions.map{case(dimension, values) =>
         dimension.d -> values.map{case(value, count) =>

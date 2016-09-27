@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.generate
+package com.github.sorhus.webalytics.batch
 
 import java.io.{BufferedWriter, OutputStreamWriter}
 import java.util.UUID
