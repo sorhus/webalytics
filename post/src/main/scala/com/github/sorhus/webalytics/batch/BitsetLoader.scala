@@ -14,6 +14,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods._
 import org.roaringbitmap.RoaringBitmap
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 
@@ -33,10 +34,12 @@ object BitsetLoader extends App {
       .withValue("akka.stdout-loglevel", ConfigValueFactory.fromAnyRef("OFF"))
     ActorSystem("webalytics-bitset-loader", config)
   }
-  val metaDao = new CachedMetaDao(new RedisMetaDao())
+//  val metaDao = new DelayedBatchInsertMetaDao(new RedisMetaDao())
+  val metaDao = new RedisMetaDao()
 
   val loader = new BitsetLoader()
   loader.load(bucket, in, audienceDao)(metaDao)
+//  metaDao.commit()
   system.shutdown()
   loader.write(outputDir, audienceDao)
 
@@ -62,6 +65,8 @@ object BitsetLoader extends App {
 
 
 class BitsetLoader() {
+
+  val log = LoggerFactory.getLogger(getClass)
 
   implicit val jsonFormats: Formats = DefaultFormats
 
@@ -93,29 +98,39 @@ class BitsetLoader() {
   def write(path: String, audienceDao: BitsetDao[RoaringBitmap]) = {
     audienceDao.bitsets.foreach{case(bucket, dimvals) =>
       dimvals.foreach{case(dimension, values) =>
-        values.foreach{case(value, bitset) =>
-          val file = new File(s"$path/${bucket.b}/${dimension.d}/${value.v.replace("/","-")}")
-          file.getParentFile.mkdirs()
-          file.createNewFile()
-          val fos = new FileOutputStream(file)
-          val dos = new DataOutputStream(fos)
+        val file = new File(s"$path/${bucket.b}/${dimension.d}")
+        file.getParentFile.mkdirs()
+        file.createNewFile()
+        val fos = new FileOutputStream(file)
+        val dos = new DataOutputStream(fos)
+        values.toList.sortBy(_._1.v).foreach{case(value, bitset) =>
+          log.info("Writing bitset: {}\n", (bucket.b, dimension.d, value.v, bitset.cardinality()))
           bitset.impl().runOptimize()
           bitset.impl().serialize(dos)
-          dos.close()
         }
+        dos.close()
       }
     }
   }
 
-  def read(path: String): Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = {
+  def read(path: String)(implicit metaDao: MetaDao): Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = {
     val files = mutable.Set[RandomAccessFile]()
     val result = new File(path).list().map { bucket =>
-      Bucket(bucket) -> new File(s"$path/$bucket").list().map{ dimension =>
-        Dimension(dimension) -> new File(s"$path/$bucket/$dimension").list().map{value =>
-          val file = new RandomAccessFile(s"$path/$bucket/$dimension/$value", "r")
-          files.add(file)
-          val memoryMapped = file.getChannel.map(MapMode.READ_ONLY, 0, file.length())
-          Value(value) -> new ImmutableRoaringMitmapWrapper(new ImmutableRoaringBitmap(memoryMapped.slice()))
+      val dimensions = new File(s"$path/$bucket").list().toList.map(Dimension.apply)
+      val dimVals = metaDao.getDimensionValues(dimensions)
+      if(dimVals.isEmpty) {
+        throw new RuntimeException("found no values for dimensions ${dimensions.map(_.d)}")
+      }
+      Bucket(bucket) -> dimVals.map{ case(dimension, values) =>
+        val file = new RandomAccessFile(s"$path/$bucket/${dimension.d}", "r")
+        files.add(file)
+        val memoryMapped = file.getChannel.map(MapMode.READ_ONLY, 0, file.length())
+        val bb = memoryMapped.slice()
+        dimension -> values.sortBy(_.v).map{value =>
+          val bitset = new ImmutableRoaringBitmap(bb)
+          log.info("Read bitset: {}\n", (bucket, dimension.d, value.v, bitset.getCardinality))
+          bb.position(bb.position() + bitset.serializedSizeInBytes())
+          value -> new ImmutableRoaringMitmapWrapper(bitset)
         }.toMap
       }.toMap
     }.toMap

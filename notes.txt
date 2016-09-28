@@ -42,7 +42,8 @@ curl -XPOST localhost:8080/count -d '
 java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.GenerateData 100 20 5 2> stats > data
 java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.ConvertToRaw data user | redis-cli --pipe
 time java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.GenerateRaw user 10000 10 10 2> stats | redis-cli --pipe
-java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.BitSetLoader tmp user ~/src/webalytics/roaring
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.BitsetLoader tmp user ~/src/webalytics/roaring
+java -jar post/target/post-0.1.0.jar roaring
 
 jq -c --join-output '.browser_id, "\t", {"device":[.device], "age":[.age], "gender":[.gender], "audience_ids":.audience_ids, "sections":[.sections[].name], "referrers":[.referrers[].name], "content_paths":[.content_paths[].name], "keyword_tags":[.keyword_tags[].name]}, "\n"'
 

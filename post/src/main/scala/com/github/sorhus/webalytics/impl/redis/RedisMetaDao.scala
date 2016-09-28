@@ -4,10 +4,12 @@ import akka.actor.ActorSystem
 import com.github.sorhus.webalytics.model._
 import redis.RedisClient
 import redis.commands.TransactionBuilder
+import redis.protocol.{MultiBulk, RedisReply}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.util.Try
 
 class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
 
@@ -15,7 +17,7 @@ class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
   // reserved char
   val elements = s"${r}elements$r"
   val next_element = s"${r}next_element$r"
-  val redis: RedisClient = new RedisClient()
+  val redis: RedisClient = RedisClient()
   val buckets = s"${r}buckets$r"
   val dimensions = s"${r}dimensions$r"
   def values(dimension: Dimension) = s"${r}values$r${dimension.d}$r"

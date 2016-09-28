@@ -14,12 +14,9 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Servlet(dao: AudienceDao)(implicit system: ActorSystem) extends ScalatraServlet with FutureSupport {
+class Servlet(dao: AudienceDao)(implicit system: ActorSystem, metaDao: MetaDao) extends ScalatraServlet with FutureSupport {
 
   val log = LoggerFactory.getLogger(getClass)
-//  implicit val dao: AudienceDao = new RedisDao()
-//  implicit val dao: AudienceDao = new BitsetDao[SparseBitSet](new SparseBitSetWrapper().create _)
-  implicit val metaDao: MetaDao = new CachedMetaDao(new RedisMetaDao())
 
   override protected implicit def executor: ExecutionContext = system.dispatcher
 

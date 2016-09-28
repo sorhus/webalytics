@@ -134,7 +134,9 @@ class ImmutableBitsetDao(bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[I
       bucket -> dimensionValues.map{case(dimension, values) =>
         dimension -> values.map{value =>
           val bitset = Try(bitsets(bucket)(dimension)(value)).toOption
-          value -> bitset.map(bs => ImmutableRoaringBitmap.andCardinality(audience.impl(), bs.impl())).getOrElse(0).toLong
+          bitset.foreach(bs => println(s"andCard: ${ImmutableRoaringBitmap.andCardinality(audience.impl(), bs.impl())}"))
+          bitset.foreach(bs => println(s"and.card: ${ImmutableRoaringBitmap.and(audience.impl(), bs.impl()).getCardinality}"))
+          value -> bitset.map(bs => ImmutableRoaringBitmap.and(audience.impl(), bs.impl()).getLongCardinality).getOrElse(0L)
         }.toList
       }
     }
