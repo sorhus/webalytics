@@ -1,13 +1,12 @@
 package com.github.sorhus.webalytics.batch
 
 import java.io._
-import java.nio.ByteBuffer
 import java.nio.channels.FileChannel.MapMode
 import java.util.UUID
 
 import akka.actor.ActorSystem
 import com.github.sorhus.webalytics.impl.{ImmutableRoaringMitmapWrapper, RoaringBitmapWrapper}
-import com.github.sorhus.webalytics.impl.redis.RedisMetaDao
+import com.github.sorhus.webalytics.impl.redis.{BatchInsertRedisMetaDao, RedisMetaDao}
 import com.github.sorhus.webalytics.model._
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s.{DefaultFormats, Formats}
@@ -17,7 +16,17 @@ import org.roaringbitmap.buffer.ImmutableRoaringBitmap
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
+import scala.util.Try
 
+/**
+  * Batch load data into a bitset.
+  *
+  * Use cases:
+  *   1. element ids attached, we need to keep the bucket open
+  *   2. element ids not attached, we don't need to keep the bucket open
+  *   3. no element ids attached, we want to keep the bucket open
+  *   4. no element ids attached, we don't need to keep the bucket open
+  */
 object BitsetLoader extends App {
 
   val inputFile = args(0)
@@ -34,12 +43,20 @@ object BitsetLoader extends App {
       .withValue("akka.stdout-loglevel", ConfigValueFactory.fromAnyRef("OFF"))
     ActorSystem("webalytics-bitset-loader", config)
   }
-//  val metaDao = new DelayedBatchInsertMetaDao(new RedisMetaDao())
-  val metaDao = new RedisMetaDao()
 
+  import scala.concurrent.ExecutionContext.Implicits.global
+  val metaDao = Try(args(3)).toOption match {
+    case Some("batch") =>
+      new DelayedBatchInsertMetaDao(new RedisMetaDao())
+    case Some("devnull") => new DevNullMetaDao
+    case Some("redisbatch") => new BatchInsertRedisMetaDao
+    case Some("cachedredisbatch") => new CachedMetaDao(new BatchInsertRedisMetaDao)
+    case Some("cachedredis") => new CachedMetaDao(new RedisMetaDao())
+    case _ => new RedisMetaDao()
+  }
   val loader = new BitsetLoader()
   loader.load(bucket, in, audienceDao)(metaDao)
-//  metaDao.commit()
+  Try(metaDao.asInstanceOf[DelayedBatchInsertMetaDao]).map(_.commit())
   system.shutdown()
   loader.write(outputDir, audienceDao)
 
@@ -104,7 +121,7 @@ class BitsetLoader() {
         val fos = new FileOutputStream(file)
         val dos = new DataOutputStream(fos)
         values.toList.sortBy(_._1.v).foreach{case(value, bitset) =>
-          log.info("Writing bitset: {}\n", (bucket.b, dimension.d, value.v, bitset.cardinality()))
+//          log.info("Writing bitset: {}\n", (bucket.b, dimension.d, value.v, bitset.cardinality()))
           bitset.impl().runOptimize()
           bitset.impl().serialize(dos)
         }

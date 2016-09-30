@@ -1,11 +1,9 @@
 package com.github.sorhus.webalytics.model
 
-import java.util
-
 import com.github.sorhus.webalytics.impl.ImmutableRoaringMitmapWrapper
 import org.roaringbitmap.buffer.{ImmutableRoaringBitmap, MutableRoaringBitmap}
 
-import scala.collection.immutable.{Iterable, Seq}
+import scala.collection.immutable.Seq
 import scala.collection.mutable.{Map => MMap}
 import scala.util.Try
 import collection.JavaConverters._
@@ -27,11 +25,9 @@ class BitsetDao[T](newBitset: () => Bitset[T]) extends AudienceDao {
 
   override def post(bucket: Bucket, element_id: ElementId, element: Element)(implicit metaDao: MetaDao): Unit = {
     metaDao.addMeta(bucket, element)
-
     val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = getBitSets(bucket, element)
     val documentId = metaDao.getDocumentId(element_id)
     element.e.foreach{case (dimension, values) =>
-      metaDao.addMeta(bucket, element)
       values.foreach{ value =>
         val bs = bitsets(bucket)(dimension)(value)
         bs.synchronized(bs.set(documentId.toInt, value = true))

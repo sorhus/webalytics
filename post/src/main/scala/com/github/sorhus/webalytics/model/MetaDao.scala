@@ -1,31 +1,33 @@
 package com.github.sorhus.webalytics.model
 
+import com.github.sorhus.webalytics.impl.redis.RedisMetaDao
+
 import scala.collection.mutable
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 trait MetaDao {
 
   def addMeta(bucket: Bucket, element: Element): Future[Any]
   def getDocumentId(element_id: ElementId): Long
   def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])]
-
+  def time(name: String)(f: Nothing) = {
+  }
 }
 
-class CachedMetaDao(impl: MetaDao) extends MetaDao {
+class CachedMetaDao(impl: MetaDao)(implicit context: ExecutionContext) extends MetaDao {
 
   import scalacache._
   import guava._
   import memoization._
 
   implicit val scalaCache = ScalaCache(GuavaCache())
-  override def addMeta(bucket: Bucket, element: Element) = {
+  override def addMeta(bucket: Bucket, element: Element) = Future {
     if(sync.get((bucket,element)).isEmpty) {
       val res = impl.addMeta(bucket, element)
       sync.caching(bucket)(element)
       res
     } else {
-      Future.successful(true)
+      true
     }
   }
 
@@ -36,24 +38,28 @@ class CachedMetaDao(impl: MetaDao) extends MetaDao {
   }
 }
 
-class DelayedBatchInsertMetaDao(impl: MetaDao) extends MetaDao {
+class DelayedBatchInsertMetaDao(impl: RedisMetaDao)(implicit context: ExecutionContext) extends MetaDao {
 
   var id: Long = 0
-  val meta = mutable.Map[Bucket, Element]()
+  val metaBuckets = mutable.Map[Bucket, Element]()
+  val metaDocumentIds = mutable.Map[String, Long]()
 
-  override def addMeta(bucket: Bucket, element: Element) = {
-    meta.put(bucket, Element.merge(meta.getOrElse(bucket, Element(Map())) :: element :: Nil))
-    Future.successful(true)
+
+  override def addMeta(bucket: Bucket, element: Element) = Future {
+    metaBuckets.put(bucket, Element.merge(metaBuckets.getOrElse(bucket, Element(Map())) :: element :: Nil))
   }
 
-  def commit() = meta.foreach{case(bucket, element) =>
-    println(s"adding metadata ${bucket}: ${element}")
-    val res = Await.result(impl.addMeta(bucket, element), Duration.Inf)
-    println(res)
+  def commit() = {
+    val futures = impl.batchInsertDocumentIds(metaDocumentIds.toMap).toList :::
+      metaBuckets.toList.map{case(bucket, element)  =>
+        impl.addMeta(bucket, element)
+      }
+    Future.sequence(futures)
   }
 
   override def getDocumentId(element_id: ElementId): Long = {
     id = id + 1L
+    metaDocumentIds.put(element_id.e, id)
     id
   }
 
@@ -61,3 +67,10 @@ class DelayedBatchInsertMetaDao(impl: MetaDao) extends MetaDao {
     impl.getDimensionValues(dimensions)
   }
 }
+
+class DevNullMetaDao extends MetaDao {
+  override def addMeta(bucket: Bucket, element: Element): Future[Any] = Future.successful("")
+  override def getDocumentId(element_id: ElementId): Long = -1L
+  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = Nil
+}
+
