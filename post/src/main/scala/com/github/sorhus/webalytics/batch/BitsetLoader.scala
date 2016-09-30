@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import com.github.sorhus.webalytics.impl.{ImmutableRoaringMitmapWrapper, RoaringBitmapWrapper}
-import com.github.sorhus.webalytics.impl.redis.{BatchInsertRedisMetaDao, RedisMetaDao}
+import com.github.sorhus.webalytics.impl.redis.RedisMetaDao
 import com.github.sorhus.webalytics.model._
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s.{DefaultFormats, Formats}
@@ -21,11 +21,17 @@ import scala.util.Try
 /**
   * Batch load data into a bitset.
   *
+  *
   * Use cases:
-  *   1. element ids attached, we need to keep the bucket open
-  *   2. element ids not attached, we don't need to keep the bucket open
-  *   3. no element ids attached, we want to keep the bucket open
-  *   4. no element ids attached, we don't need to keep the bucket open
+  *   1. We need to be able to update elements and add new elements
+  *   2. We don't need to update elements, but we need to be able to add elements
+  *   3. We don't need to update nor add elements
+  *
+  * Element ids can be attached or not attached.
+  *
+  * We always need to store meta data regarding dimensions and values
+  * Only in case of 1) do we need to store (element id -> document id) mapping
+  * In case of 3) we need no additional meta data
   */
 object BitsetLoader extends App {
 
@@ -45,14 +51,10 @@ object BitsetLoader extends App {
   }
 
   import scala.concurrent.ExecutionContext.Implicits.global
+
   val metaDao = Try(args(3)).toOption match {
-    case Some("batch") =>
-      new DelayedBatchInsertMetaDao(new RedisMetaDao())
     case Some("devnull") => new DevNullMetaDao
-    case Some("redisbatch") => new BatchInsertRedisMetaDao
-    case Some("cachedredisbatch") => new CachedMetaDao(new BatchInsertRedisMetaDao)
-    case Some("cachedredis") => new CachedMetaDao(new RedisMetaDao())
-    case _ => new RedisMetaDao()
+    case _ => new DelayedBatchInsertMetaDao(new RedisMetaDao())
   }
   val loader = new BitsetLoader()
   loader.load(bucket, in, audienceDao)(metaDao)
@@ -60,28 +62,8 @@ object BitsetLoader extends App {
   system.shutdown()
   loader.write(outputDir, audienceDao)
 
-//  audienceDao.bitsets.foreach{case(bucket,dimensions) =>
-//    dimensions.foreach{case(dimension,values) =>
-//      values.foreach{case(value, bitset) =>
-//        println(s"${bucket.b}:${dimension.d}:${value.v} -> ${bitset.cardinality()}")
-//      }
-//    }
-//  }
-//
-//
-//  val mmapped = loader.read(outputDir)
-//  mmapped.foreach{case(bucket,dimensions) =>
-//    dimensions.foreach{case(dimension,values) =>
-//      values.foreach{case(value, bitset) =>
-//        println(s"${bucket.b}:${dimension.d}:${value.v} -> ${bitset.getLongCardinality}")
-//      }
-//    }
-//  }
-
 }
-
-
-class BitsetLoader() {
+class BitsetLoader {
 
   val log = LoggerFactory.getLogger(getClass)
 

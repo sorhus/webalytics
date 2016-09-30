@@ -9,17 +9,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-class BatchInsertRedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
-  val impl = new RedisMetaDao()
-  var id = 0
-  override def addMeta(bucket: Bucket, element: Element): Future[Any] = impl.addMeta(bucket, element)
-  override def getDocumentId(element_id: ElementId): Long = {
-    id += 1
-    id
-  }
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = ???
-}
-
 class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
 
   val r = "_"
