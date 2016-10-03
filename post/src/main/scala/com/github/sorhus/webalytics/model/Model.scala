@@ -17,6 +17,10 @@ case class Element(e: Map[Dimension, List[Value]]) {
 }
 
 object Element {
+  def fromMap(data: Map[String, List[String]]): Element = {
+    Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
+  }
+
   def merge(dimensionValues: List[Element]): Element = {
 
     val grouped: Map[Dimension, List[(Dimension, List[Value])]] = dimensionValues
@@ -71,3 +75,8 @@ object JsonResult {
     }
   }
 }
+
+case class PostEvent(bucket: Bucket, documentId: DocumentId, element: Element)
+case class PostMetaEvent(bucket: Bucket, element: Element)
+case class PostEvent1(bucket: Bucket, elementId: ElementId, element: Element)
+case class QueryEvent(query: Query, space: Element)

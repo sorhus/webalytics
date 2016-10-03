@@ -1,6 +1,9 @@
+import java.util.concurrent.TimeUnit
 import javax.servlet.ServletContext
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
+import akka.util.Timeout
+import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, DimensionValueActor}
 import com.github.sorhus.webalytics.api.Servlet
 import com.github.sorhus.webalytics.batch.BitsetLoader
 import com.github.sorhus.webalytics.impl.redis.{RedisDao, RedisMetaDao}
@@ -17,16 +20,20 @@ class ScalatraBootstrap extends LifeCycle {
 
   override def init(context: ServletContext) {
     val bitsetsDir = context.getAttribute("bitsets").toString
-    implicit val metaDao = new RedisMetaDao()
+    implicit val timeOut = Timeout(10, TimeUnit.MINUTES)
+
     val dao = if(bitsetsDir != null) {
       log.info("Loading bitsets from {}", bitsetsDir)
       val loader = new BitsetLoader()
-      val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = loader.read(bitsetsDir)
+      val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(), "audience")
+      val queryActor: ActorRef = system.actorOf(DimensionValueActor.props(audienceActor), "meta")
+      val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = loader.read(bitsetsDir, queryActor)
       new ImmutableBitsetDao(bitsets)
     } else {
       log.info("Using RedisDao")
       new RedisDao()
     }
+    implicit val metaDao = new RedisMetaDao()
     context.mount(new Servlet(dao), "/")
   }
 

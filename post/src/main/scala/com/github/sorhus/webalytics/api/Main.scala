@@ -9,7 +9,7 @@ import util.Try
 object Main extends App {
 
   val dir = Try(args(0)).toOption
-  val port = 8080
+  val port = 9000
   val server = new Server(port)
   val context = new WebAppContext()
   context.setContextPath("/")
