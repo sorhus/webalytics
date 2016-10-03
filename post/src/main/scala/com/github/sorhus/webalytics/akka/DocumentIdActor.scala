@@ -15,6 +15,14 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
 
   override def persistenceId: String = "document-id-actor"
 
+  override def receiveRecover: Receive = {
+    case e: PostEvent1 => state.getDocumentId(e.elementId)
+    case SnapshotOffer(_, snapshot: DocumentIds) =>
+      log.info("restoring state from snapshot")
+      snapshot.ids.foreach{case(k,v) => state.ids.put(k,v)}
+      state.counter = snapshot.counter
+  }
+
   def handle(event: PostEvent1): Unit = {
     val documentId = state.getDocumentId(event.elementId)
     queryActor ! PostMetaEvent(event.bucket, event.element)
@@ -25,16 +33,13 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
     case e: PostEvent1 =>
       log.info("received event {}", e)
       persist(e)(handle)
+    case SaveSnapshot =>
+      log.info("saving snapshot")
+      saveSnapshot(state)
     case Shutdown => sender() ! context.stop(self)
     case x => println(s"doc recieved $x")
   }
 
-  override def receiveRecover: Receive = {
-    case e: PostEvent1 => state.getDocumentId(e.elementId)
-    case SnapshotOffer(_, snapshot: DocumentIds) =>
-      snapshot.ids.foreach{case(k,v) => state.ids.put(k,v)}
-      state.counter = snapshot.counter
-  }
 
 }
 

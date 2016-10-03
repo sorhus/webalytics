@@ -17,7 +17,9 @@ class DimensionValueActor(audienceActor: ActorRef) extends PersistentActor {
 
   override def receiveRecover: Receive = {
     case e: PostMetaEvent => state.add(e)
-    case SnapshotOffer(_, snapshot: DimensionValues) => snapshot.elems.foreach{case(k,v) => state.elems.put(k,v)}
+    case SnapshotOffer(_, snapshot: DimensionValues) =>
+      log.info("restoring state from snapshot")
+      snapshot.elems.foreach{case(k,v) => state.elems.put(k,v)}
   }
 
   override def receiveCommand: Receive = {
@@ -30,6 +32,9 @@ class DimensionValueActor(audienceActor: ActorRef) extends PersistentActor {
     case Getall =>
 //      println("received \"getall\" message")
       sender() ! state.getAll
+    case SaveSnapshot =>
+      log.info("saving snapshot")
+      saveSnapshot(state)
     case Shutdown => sender() ! context.stop(self)
     case Debug => state.debug()
     case x => println(s"dimval recieved $x")

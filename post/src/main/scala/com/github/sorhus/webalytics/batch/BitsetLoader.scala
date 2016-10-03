@@ -77,12 +77,15 @@ object BitsetLoader extends App {
 //  Await.result(system.terminate(), Duration.Inf)
 //  loader.write(outputDir, audienceDao)
 
-  log.info("Writing to disk")
-  val write = (audienceActor ? "getall").map{
-    case s: BitsetState[RoaringBitmap] =>
-      loader.write(outputDir, s)
-  }
-  Await.result(write, Duration.Inf)
+  documentActor ! SaveSnapshot
+  queryActor ! SaveSnapshot
+  audienceActor ! SaveSnapshot
+//  log.info("Writing to disk")
+//  val write = (audienceActor ? "getall").map{
+//    case s: BitsetState[RoaringBitmap] =>
+//      loader.write(outputDir, s)
+//  }
+//  Await.result(write, Duration.Inf)
 
   Await.result(documentActor ? Shutdown, Duration.Inf)
   Await.result(queryActor ? Shutdown, Duration.Inf)

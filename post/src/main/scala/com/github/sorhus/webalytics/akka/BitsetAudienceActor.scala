@@ -43,6 +43,9 @@ class BitsetAudienceActor extends PersistentActor {
         }.toMap
       }.toMap
       sender() ! response
+    case SaveSnapshot =>
+      log.info("saving snapshot")
+      saveSnapshot(state)
     case Shutdown => sender() ! context.stop(self)
     case Debug => state.debug()
     case x => println(s"audience recieved $x")
