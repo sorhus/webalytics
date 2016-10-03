@@ -124,7 +124,7 @@ class BitsetLoader {
       }
   }
 
-  def write(path: String, state: BitsetSt ate[RoaringBitmap]) = {
+  def write(path: String, state: BitsetState[RoaringBitmap]) = {
     state.bitsets.foreach{case(bucket, dimvals) =>
       dimvals.foreach{case(dimension, values) =>
         val file = new File(s"$path/${bucket.b}/${dimension.d}")
