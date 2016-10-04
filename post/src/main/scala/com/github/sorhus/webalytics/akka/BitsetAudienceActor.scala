@@ -1,7 +1,7 @@
 package com.github.sorhus.webalytics.akka
 
 import akka.actor.Props
-import akka.persistence.{PersistentActor, Recovery, SnapshotOffer}
+import akka.persistence._
 import com.github.sorhus.webalytics.model._
 import org.roaringbitmap.RoaringBitmap
 import com.github.sorhus.webalytics.impl.RoaringBitmapWrapper
@@ -19,11 +19,17 @@ class BitsetAudienceActor extends PersistentActor {
   override def persistenceId: String = "bitset-audience-actor"
 
   override def receiveRecover: Receive = {
+
     case e: PostEvent =>
+      log.info("received recover postevent {}", e)
       state.post(e)
+
     case SnapshotOffer(_, snapshot: BitsetState[RoaringBitmap]) =>
       log.info("received recover snapshot {}", snapshot)
       state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
   }
 
   def handle(e: PostEvent): Unit = state.post(e)
@@ -33,6 +39,7 @@ class BitsetAudienceActor extends PersistentActor {
       log.info("received postevent {}", e)
       sender() ! persist(e)(handle)
     //      state.debug()
+
     case QueryEvent(query: Query, space: Element) =>
       val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
         .map{case(bucket, dimensions) =>
@@ -43,11 +50,23 @@ class BitsetAudienceActor extends PersistentActor {
         }.toMap
       }.toMap
       sender() ! response
+
+    case CloseBucket(b) => log.info("TODO implement")
+
     case SaveSnapshot =>
       log.info("saving snapshot")
       saveSnapshot(state)
+
     case Shutdown => sender() ! context.stop(self)
+
     case Debug => state.debug()
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+
+    case SaveSnapshotFailure(_, reason) =>
+      log.info("failed to save snapshot: {}", reason)
+
     case x => println(s"audience recieved $x")
 
   }
@@ -59,7 +78,7 @@ object BitsetAudienceActor {
 }
 
 
-class BitsetState[T](newBitset: () => Bitset[T]) {
+class BitsetState[T](newBitset: () => Bitset[T]) extends Serializable {
 
   private[webalytics] val bitsets = MMap[Bucket,MMap[Dimension,MMap[Value, Bitset[T]]]]()
   val staticBitSet: Bitset[T] = newBitset()
@@ -77,7 +96,7 @@ class BitsetState[T](newBitset: () => Bitset[T]) {
   def post(postEvent: PostEvent): Unit = post(postEvent.bucket, postEvent.documentId, postEvent.element)
 
   def post(bucket: Bucket, documentId: DocumentId, element: Element): Unit = {
-    val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = getBitSets(bucket, element)
+    makeBitsetsExist(bucket, element)
     element.e.foreach{case (dimension, values) =>
       values.foreach{ value =>
         val bs = bitsets(bucket)(dimension)(value)
@@ -87,62 +106,39 @@ class BitsetState[T](newBitset: () => Bitset[T]) {
   }
 
   def getCount(query: Query, dimensionValues: Map[Dimension, List[Value]]): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
-//    println(s"Bitsets: $bitsets")
-    val audience = getAudience(/*bitsets, */query.filter)
+    val audience = getAudience(query.filter)
     query.buckets.map{ bucket =>
       bucket -> dimensionValues.map{case(dimension, values) =>
         dimension -> values.map{value =>
           val bitset = Try(bitsets(bucket)(dimension)(value)).toOption
-//          println(s"$bucket,$dimension,$value: ${bitset.map(_.cardinality())}")
           value -> bitset.map(bs => staticBitSet.and(audience, bs).cardinality()).getOrElse(0L)
         }
       }.toList
     }
   }
 
-  private def getBitSets(query: Query, dimensionValues: Map[Dimension, List[Value]]): Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = {
-    val buckets: Set[Bucket] = query.filter.f.flatMap(_.flatten).map(_._1).toSet ++ query.buckets.toSet
-    val all: Map[Bucket, Element] = buckets.map{ bucket =>
-      bucket -> Element(dimensionValues)
-    }.toMap
-    getBitSets(all)
-  }
-
-  private def getBitSets(all: Map[Bucket, Element]): Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = {
-    val res: Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = all.map{case(bucket, elements) =>
-      if(!bitsets.contains(bucket)) {
-        bitsets.put(bucket, MMap[Dimension, MMap[Value, Bitset[T]]]())
+  private def makeBitsetsExist(bucket: Bucket, element: Element): Unit = {
+    if(!bitsets.contains(bucket)) {
+      bitsets.put(bucket, MMap[Dimension, MMap[Value, Bitset[T]]]())
+    }
+    element.e.foreach{ case (dimension, values) =>
+      if(!bitsets(bucket).contains(dimension)) {
+        bitsets(bucket).put(dimension, MMap[Value, Bitset[T]]())
       }
-      bucket -> elements.e.map{ case (dimension, values) =>
-        if(!bitsets(bucket).contains(dimension)) {
-          bitsets(bucket).put(dimension, MMap[Value, Bitset[T]]())
+      values.foreach{ case(value) =>
+        if(!bitsets(bucket)(dimension).contains(value)) {
+          bitsets(bucket)(dimension).put(value, newBitset())
         }
-        dimension -> values.map{ case(value) =>
-          if(!bitsets(bucket)(dimension).contains(value)) {
-            bitsets(bucket)(dimension).put(value, newBitset())
-          }
-          value -> bitsets(bucket)(dimension)(value)
-        }.toMap
       }
     }
-    res
   }
 
-  private def getBitSets(bucket: Bucket, element: Element): Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = {
-    getBitSets(Map(bucket -> element))
-  }
-
-  private def getAudience(/*bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]], */filter: Filter): Bitset[T] = {
+  private def getAudience(filter: Filter): Bitset[T] = {
     val ored: List[Bitset[T]] = filter.f.map{ and: List[Map[Bucket, Element]] =>
       val destination = newBitset()
       and.foreach{ or: Map[Bucket, Element] =>
         or.foreach{case(bucket, element) =>
           element.e.foreach{
-//            case(dimension, Value("*") :: Nil) =>
-//              val values = metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
-//              values.foreach { value =>
-//                destination.or(bitsets(bucket)(dimension)(value))
-//              }
             case(dimension, values) =>
               values.foreach { value =>
                 Try(bitsets(bucket)(dimension)(value)).toOption.foreach(destination.or)
@@ -154,7 +150,6 @@ class BitsetState[T](newBitset: () => Bitset[T]) {
     }
     ored.tail.foreach(ored.head.and)
     val result = ored.head
-//    println(s"Audience size: ${result.cardinality()}")
     result
   }
 
