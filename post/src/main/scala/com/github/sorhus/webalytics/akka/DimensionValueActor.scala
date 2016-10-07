@@ -1,43 +1,76 @@
 package com.github.sorhus.webalytics.akka
 
-import akka.actor.{ActorRef, Props}
-import akka.persistence.{PersistentActor, Recovery, SnapshotOffer}
+import akka.{Done, NotUsed}
+import akka.actor.Actor.Receive
+import akka.actor.{Actor, ActorRef, Props}
+import akka.persistence._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Source
 import com.github.sorhus.webalytics.model._
 import org.slf4j.LoggerFactory
 
-import scala.collection.mutable
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 class DimensionValueActor(audienceActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
+  log.info(s"$getClass alive")
 
-  val state = new DimensionValues
+  var state = DimensionValues()
+
+  def handle(e: PostMetaEvent) = {
+    state = state.update(e)
+  }
 
   override def persistenceId: String = "dimension-value-actor"
 
   override def receiveRecover: Receive = {
-    case e: PostMetaEvent => state.add(e)
+
+    case e: PostMetaEvent =>
+      handle(e)
+      log.info("received recover postmetaevent {}", e)
+
     case SnapshotOffer(_, snapshot: DimensionValues) =>
       log.info("restoring state from snapshot")
-      snapshot.elems.foreach{case(k,v) => state.elems.put(k,v)}
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+
   }
 
   override def receiveCommand: Receive = {
+
     case e: PostMetaEvent =>
       log.info("received postmetaevent {}", e)
-      persist(e)(state.add)
+      persist(e)(handle)
+
     case query: Query =>
       val space = state.get(query.dimensions)
       audienceActor forward QueryEvent(query, space)
+
     case Getall =>
-//      println("received \"getall\" message")
       sender() ! state.getAll
+
     case SaveSnapshot =>
-      log.info("saving snapshot")
+      log.info("saving snapshot: {}", state)
       saveSnapshot(state)
-    case Shutdown => sender() ! context.stop(self)
-    case Debug => state.debug()
-    case x => println(s"dimval recieved $x")
+
+    case Shutdown =>
+      sender() ! context.stop(self)
+
+    case Debug =>
+      state.debug()
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+
+    case SaveSnapshotFailure(_, reason) =>
+      log.info("failed to save snapshot", reason)
+
+    case x =>
+      log.info(s"dimval recieved $x")
 
   }
 
@@ -45,27 +78,25 @@ class DimensionValueActor(audienceActor: ActorRef) extends PersistentActor {
 
 object DimensionValueActor {
   def props(audienceDao: ActorRef): Props = Props(new DimensionValueActor(audienceDao))
+  val persistenceId: String = "dimension-value-actor"
 }
 
-class DimensionValues {
-  val elems = mutable.Map[Bucket, Element]()
-  def add(event: PostMetaEvent): Unit = add(event.bucket, event.element)
-  def add(bucket: Bucket, element: Element): Unit = {
-    elems.put(bucket, Element.merge(elems.getOrElse(bucket, Element(Map())) :: element :: Nil))
+case class DimensionValues(elems: Map[Bucket, Element] = Map[Bucket, Element]()) extends Serializable {
+  def update(event: PostMetaEvent): DimensionValues = {
+    val updated = event.bucket -> (elems.getOrElse(event.bucket, Element()) + event.element)
+    copy(elems = elems + updated)
   }
   def get(dimensions: List[Dimension]): Element = {
-//    println(getAll())
-//    println(dimensions)
     dimensions match {
-      case Dimension("*") :: Nil => getAll()
-      case _ => Element(getAll().e.filter{case(d,v) => dimensions.contains(d)})
+      case Dimension("*") :: Nil => getAll
+      case _ => Element(getAll.e.filter{case(d,v) => dimensions.contains(d)})
     }
   }
-  def getAll(): Element = {
-    val all = elems.map{case(bucket, elements) => elements}.toList
-    Element.merge(all)
+  def getAll: Element = Element.merge {
+    elems.map{case(bucket, elements) => elements}.toList
   }
   def debug(): Unit = {
     println(elems)
   }
 }
+

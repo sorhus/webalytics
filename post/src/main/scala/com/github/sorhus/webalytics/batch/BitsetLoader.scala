@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
 import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, BitsetState, DimensionValueActor, DocumentIdActor}
-import com.github.sorhus.webalytics.impl.ImmutableRoaringMitmapWrapper
+import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
 import com.github.sorhus.webalytics.model._
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s.{DefaultFormats, Formats}
@@ -50,12 +50,7 @@ object BitsetLoader extends App {
   val out = new BufferedWriter(new OutputStreamWriter(System.out))
 //  val audienceDao = new BitsetDao[RoaringBitmap](new RoaringBitmapWrapper().create _)
 
-  implicit val system = {
-    val config = ConfigFactory.load()
-      .withValue("akka.loglevel", ConfigValueFactory.fromAnyRef("OFF"))
-      .withValue("akka.stdout-loglevel", ConfigValueFactory.fromAnyRef("OFF"))
-    ActorSystem("webalytics-bitset-loader", config)
-  }
+  implicit val system = ActorSystem("webalytics-bitset-loader")
   implicit val timeOut = Timeout(10, TimeUnit.MINUTES)
 
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -64,7 +59,7 @@ object BitsetLoader extends App {
 //    case Some("devnull") => new DevNullMetaDao
 //    case _ => new DelayedBatchInsertMetaDao(new RedisMetaDao())
 //  }
-  val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(), "audience")
+  val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(null), "audience")
   val queryActor: ActorRef = system.actorOf(DimensionValueActor.props(audienceActor), "meta")
   val documentActor: ActorRef = system.actorOf(DocumentIdActor.props(audienceActor, queryActor), "document")
 
@@ -138,7 +133,7 @@ class BitsetLoader {
         val bytes = 0
         values.toList.sortBy(_._1.v).foreach{case(value, bitset) =>
           bitset.impl().runOptimize()
-          log.info("Writing bitset: {} with bytes: \n", (bucket.b, dimension.d, value.v, bitset.cardinality(), bitset.impl().serializedSizeInBytes()))
+          log.info("Writing bitset: {} with bytes: ", (bucket.b, dimension.d, value.v, bitset.cardinality(), bitset.impl().serializedSizeInBytes()))
           bitset.impl().serialize(dos)
         }
         log.info("Closing outputstream for {}", dimension)
@@ -164,10 +159,10 @@ class BitsetLoader {
         log.info(s"got bytebuffer {}", bb)
         dimension -> values.sortBy(_.v).map{value =>
           val bitset = new ImmutableRoaringBitmap(bb)
-          log.info("Read bitset: {}\n", (bucket, dimension.d, value.v, bitset.getCardinality))
-          log.info("At position: {}\n", (bb.position(), bitset.serializedSizeInBytes()))
+          log.info("Read bitset: {}", (bucket, dimension.d, value.v, bitset.getCardinality))
+          log.info("At position: {}", (bb.position(), bitset.serializedSizeInBytes()))
           bb.position(bb.position() + bitset.serializedSizeInBytes())
-          value -> new ImmutableRoaringMitmapWrapper(bitset)
+          value -> new ImmutableRoaringBitmapWrapper(bitset)
         }.toMap
       }.toMap
     }.toMap

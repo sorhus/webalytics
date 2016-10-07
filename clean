@@ -1,0 +1,3 @@
+rm -r journal
+rm -r snapshots
+rm -r roaring

@@ -1,45 +1,70 @@
 package com.github.sorhus.webalytics.akka
 
 import akka.actor.{ActorRef, Props}
-import akka.persistence.{PersistentActor, SnapshotOffer}
+import akka.persistence._
 import com.github.sorhus.webalytics.model._
 import org.slf4j.LoggerFactory
-
-import scala.collection.mutable
 
 class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
+  log.info(s"$getClass alive")
 
-  val state = new DocumentIds
+  var state = DocumentIds()
 
   override def persistenceId: String = "document-id-actor"
 
   override def receiveRecover: Receive = {
-    case e: PostEvent1 => state.getDocumentId(e.elementId)
+
+    case e: PostEvent1 =>
+      log.info("received recover postevent {}", e)
+      state = state.update(e.elementId)
+
     case SnapshotOffer(_, snapshot: DocumentIds) =>
       log.info("restoring state from snapshot")
-      snapshot.ids.foreach{case(k,v) => state.ids.put(k,v)}
-      state.counter = snapshot.counter
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+
   }
 
   def handle(event: PostEvent1): Unit = {
-    val documentId = state.getDocumentId(event.elementId)
+    log.info("handling event")
+    state = state.update(event.elementId)
+    val documentId = state.get(event.elementId)
     queryActor ! PostMetaEvent(event.bucket, event.element)
     audienceActor forward PostEvent(event.bucket, documentId, event.element)
   }
 
   override def receiveCommand: Receive = {
+
     case e: PostEvent1 =>
-      log.info("received event {}", e)
+      log.info("received postevent {}", e)
       persist(e)(handle)
+
     case SaveSnapshot =>
       log.info("saving snapshot")
       saveSnapshot(state)
-    case Shutdown => sender() ! context.stop(self)
-    case x => println(s"doc recieved $x")
+
+    case Shutdown =>
+      sender() ! context.stop(self)
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+
+    case SaveSnapshotFailure(_, reason) =>
+      log.info("failed to save snapshot: {}", reason)
+
+    case x =>
+      log.info(s"doc recieved {}", x)
+
   }
 
+  override def recovery = {
+    log.info("recovery")
+    Recovery(fromSnapshot = SnapshotSelectionCriteria.Latest)
+  }
 
 }
 
@@ -47,13 +72,12 @@ object DocumentIdActor {
   def props(audienceActor: ActorRef, queryActor: ActorRef): Props = Props(new DocumentIdActor(audienceActor, queryActor))
 }
 
-class DocumentIds {
-  val ids = mutable.Map[String, DocumentId]()
-  var counter = 0
-  def getDocumentId(elementId: ElementId): DocumentId = ids.getOrElse(elementId.e, {
-    counter +=1
-    val id = DocumentId(counter)
-    ids.put(elementId.e, id)
-    id
-  })
+case class DocumentIds(counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
+  def get(elementId: ElementId): DocumentId = ids(elementId)
+  def update(elementId: ElementId): DocumentIds = {
+    if(ids.contains(elementId))
+      this
+    else
+      copy(counter + 1, ids + (elementId -> DocumentId(counter + 1)))
+  }
 }

@@ -1,0 +1,8 @@
+
+x=0
+while read line; do
+  x=$((x + 1)) 
+  echo "curling $x"
+  sleep 0.003
+  curl -XPOST -H "Content-Type: application/json" localhost:9000/post/user/$(uuidgen) -d $line &
+done < tmp

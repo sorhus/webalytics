@@ -61,4 +61,4 @@ done < tmp
 
 curl -H "Content-Type: application/json" -XPOST localhost:9000/post -d '{"device":["smartphone"],"age":["18-24"],"gender":["male"],"audience_id":["theguardian"],"section":["environment"],"referrer":["TWITTER"],"keyword":["environment/environment","environment/wildlife","world/malaysia","world/cambodia","world/asia-pacific","world/world","environment/endangeredspecies","world/animals","environment/conservation"]}'
 curl -H "Content-Type: application/json" -XGET localhost:9000/count -d '{"filter":[[{"user":{"referrer":["TWITTER","FACEBOOK"]}}],[{"user":{"section":["football"]}}]],"buckets":["user"],"dimensions":["*"]}'
-curl -H "Content-Type: application/json" -XGET localhost:9000/count -d '{"filter":[[{"user":{"referrer":["TWITTER"]}]],"buckets":["user"],"dimensions":["*"]}'
+curl -H "Content-Type: application/json" -XGET localhost:9000/count -d '{"filter":[[{"user":{"referrer":["TWITTER"]}}]],"buckets":["user"],"dimensions":["*"]}'

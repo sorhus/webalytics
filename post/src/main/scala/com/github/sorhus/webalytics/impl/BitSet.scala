@@ -31,17 +31,22 @@ class RoaringBitmapWrapper(val impl: RoaringBitmap = new RoaringBitmap()) extend
   override def create(): Bitset[RoaringBitmap] = new RoaringBitmapWrapper(new RoaringBitmap())
 }
 
-class ImmutableRoaringMitmapWrapper(val impl: ImmutableRoaringBitmap = new ImmutableRoaringBitmap(ByteBuffer.allocate(1))) extends Bitset[ImmutableRoaringBitmap] {
+class ImmutableRoaringBitmapWrapper(val impl: ImmutableRoaringBitmap) extends Bitset[ImmutableRoaringBitmap] {
   override def set(bit: Long, value: Boolean): Unit = ???
   override def and(that: Bitset[ImmutableRoaringBitmap]): Unit = {
-    new ImmutableRoaringMitmapWrapper(ImmutableRoaringBitmap.and(impl, that.impl()))
+    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.and(impl, that.impl()))
   }
   override def and(bitset1: Bitset[ImmutableRoaringBitmap], bitset2: Bitset[ImmutableRoaringBitmap]): Bitset[ImmutableRoaringBitmap] = {
-    new ImmutableRoaringMitmapWrapper(ImmutableRoaringBitmap.and(bitset1.impl(), bitset2.impl()))
+    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.and(bitset1.impl(), bitset2.impl()))
   }
   override def or(that: Bitset[ImmutableRoaringBitmap]): Unit = {
-    new ImmutableRoaringMitmapWrapper(ImmutableRoaringBitmap.or(impl, that.impl()))
+    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.or(impl, that.impl()))
   }
   override def cardinality(): Long = impl.getLongCardinality
   override def create(): Bitset[ImmutableRoaringBitmap] = ???
+}
+object ImmutableRoaringBitmapWrapper {
+  def and(bitset1: Bitset[ImmutableRoaringBitmap], bitset2: Bitset[ImmutableRoaringBitmap]): Bitset[ImmutableRoaringBitmap] = {
+    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.and(bitset1.impl(), bitset2.impl()))
+  }
 }

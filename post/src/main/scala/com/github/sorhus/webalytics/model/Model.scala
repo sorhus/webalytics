@@ -11,12 +11,18 @@ case class DataPoint(elementId: ElementId, element: Element)
 case class Space(s: Map[Dimension, List[Value]])
 
 case class Element(e: Map[Dimension, List[Value]]) {
-  def ++(that: Element) = {
-    copy(e = e ++ that.e)
+  def +(that: Element) = {
+    val keys = e.keys ++ that.e.keys
+    val merged = keys.map{key =>
+      key -> (e.getOrElse(key, Nil) ++ that.e.getOrElse(key, Nil)).distinct
+    }.toMap
+    copy(e = merged)
   }
 }
 
 object Element {
+
+  def apply() = new Element(Map.empty)
   def fromMap(data: Map[String, List[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
   }
@@ -29,8 +35,8 @@ object Element {
         dimension
       }
 
-    val e: Map[Dimension, List[Value]] = grouped.mapValues{case(group) =>
-      group.flatMap{case(d, values) =>
+    val e: Map[Dimension, List[Value]] = grouped.map{case(key, group) => // because mapValues does not serialize
+      key -> group.flatMap{case(d, values) =>
         values
       }.distinct
     }
@@ -80,3 +86,4 @@ case class PostEvent(bucket: Bucket, documentId: DocumentId, element: Element)
 case class PostMetaEvent(bucket: Bucket, element: Element)
 case class PostEvent1(bucket: Bucket, elementId: ElementId, element: Element)
 case class QueryEvent(query: Query, space: Element)
+case class CloseBucket(b: Bucket)

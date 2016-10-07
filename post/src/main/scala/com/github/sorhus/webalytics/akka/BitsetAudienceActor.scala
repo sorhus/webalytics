@@ -1,6 +1,6 @@
 package com.github.sorhus.webalytics.akka
 
-import akka.actor.Props
+import akka.actor.{ActorRef, Props}
 import akka.persistence._
 import com.github.sorhus.webalytics.model._
 import org.roaringbitmap.RoaringBitmap
@@ -10,9 +10,10 @@ import org.slf4j.LoggerFactory
 import scala.util.Try
 import scala.collection.mutable.{Map => MMap}
 
-class BitsetAudienceActor extends PersistentActor {
+class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
+  log.info(s"$getClass alive")
 
   var state = new BitsetState[RoaringBitmap](new RoaringBitmapWrapper().create _)
 
@@ -35,12 +36,14 @@ class BitsetAudienceActor extends PersistentActor {
   def handle(e: PostEvent): Unit = state.post(e)
 
   override def receiveCommand: Receive = {
+
     case e: PostEvent =>
       log.info("received postevent {}", e)
-      sender() ! persist(e)(handle)
+      /*sender() ! */persist(e)(handle)
     //      state.debug()
 
     case QueryEvent(query: Query, space: Element) =>
+      log.info("received query and space {}", (query, space))
       val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
         .map{case(bucket, dimensions) =>
           bucket.b -> dimensions.map{case(dimension, values) =>
@@ -57,6 +60,9 @@ class BitsetAudienceActor extends PersistentActor {
       log.info("saving snapshot")
       saveSnapshot(state)
 
+    case Immutate(bucket) =>
+      immutableActor ! MakeImmutable(bucket, state.bitsets(bucket))
+
     case Shutdown => sender() ! context.stop(self)
 
     case Debug => state.debug()
@@ -67,18 +73,22 @@ class BitsetAudienceActor extends PersistentActor {
     case SaveSnapshotFailure(_, reason) =>
       log.info("failed to save snapshot: {}", reason)
 
-    case x => println(s"audience recieved $x")
+    case x =>
+      log.info(s"audience recieved {}", x)
 
   }
 
 }
 
 object BitsetAudienceActor {
-  def props(): Props = Props(new BitsetAudienceActor)
+  def props(immutableActor: ActorRef): Props = Props(new BitsetAudienceActor(immutableActor))
+  def props(): Props = Props(new BitsetAudienceActor())
 }
 
 
 class BitsetState[T](newBitset: () => Bitset[T]) extends Serializable {
+
+  val log = LoggerFactory.getLogger(getClass)
 
   private[webalytics] val bitsets = MMap[Bucket,MMap[Dimension,MMap[Value, Bitset[T]]]]()
   val staticBitSet: Bitset[T] = newBitset()
@@ -87,7 +97,7 @@ class BitsetState[T](newBitset: () => Bitset[T]) extends Serializable {
     bitsets.foreach{case (bucket, elements) =>
       elements.foreach{case (dimension, values) =>
         values.foreach{case(value, bitset) =>
-          println(s"${bucket.b} ${dimension.d} ${value.v}: ${bitset.cardinality()}")
+          log.info(s"${bucket.b} ${dimension.d} ${value.v}: ${bitset.cardinality()}")
         }
       }
     }
