@@ -3,7 +3,8 @@ import javax.servlet.ServletContext
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.util.Timeout
-import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, DimensionValueActor, ImmutableBitsetActor}
+import com.github.sorhus.webalytics.akka.meta.{MetaDataActor, MetaDataActor$}
+import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, ImmutableBitsetActor}
 import com.github.sorhus.webalytics.api.Servlet
 import com.github.sorhus.webalytics.batch.BitsetLoader
 import com.github.sorhus.webalytics.impl.redis.{RedisDao, RedisMetaDao}
@@ -27,7 +28,7 @@ class ScalatraBootstrap extends LifeCycle {
       val loader = new BitsetLoader()
       val immutableActor = system.actorOf(ImmutableBitsetActor.props("roaring"), "immutable")
       val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(immutableActor), "audience")
-      val queryActor: ActorRef = system.actorOf(DimensionValueActor.props(audienceActor), "meta")
+      val queryActor: ActorRef = system.actorOf(MetaDataActor.props(audienceActor), "meta")
       val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = loader.read(bitsetsDir, queryActor)
       new ImmutableBitsetDao(bitsets)
     } else {

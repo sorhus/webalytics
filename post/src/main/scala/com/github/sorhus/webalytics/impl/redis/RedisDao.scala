@@ -7,6 +7,7 @@ import com.github.sorhus.webalytics.model._
 import redis.RedisClient
 import redis.commands.TransactionBuilder
 
+import scala.collection.Set
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
@@ -38,9 +39,9 @@ class RedisDao(implicit akkaSystem: ActorSystem) extends AudienceDao {
       ands.map{ ors: Map[Bucket, Element] =>
         val keys = ors.flatMap{case(bucket, element) =>
           element.e.flatMap{
-            case(dimension, Value("*") :: Nil) =>
-              metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
-               .map(value => getKey(bucket, dimension, value))
+//            case(dimension, Set(Value("*"))) =>
+//              metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
+//               .map(value => getKey(bucket, dimension, value))
             case(dimension, values) =>
               values.map(value => getKey(bucket, dimension, value))
           }
@@ -57,7 +58,7 @@ class RedisDao(implicit akkaSystem: ActorSystem) extends AudienceDao {
   }
 
 
-  private def getCounts(audience: String, dimVals: List[(Dimension, List[Value])], buckets: List[Bucket]): List[(Bucket, List[(Dimension, List[(Value, Future[Long])])])] = {
+  private def getCounts(audience: String, dimVals: List[(Dimension, Set[Value])], buckets: List[Bucket]): List[(Bucket, List[(Dimension, List[(Value, Future[Long])])])] = {
     val transaction = redis.transaction()
     val result = buckets.map{ bucket =>
       bucket -> dimVals.map{case(dimension, values) =>
@@ -67,7 +68,7 @@ class RedisDao(implicit akkaSystem: ActorSystem) extends AudienceDao {
           val count = transaction.bitcount(destination)
           transaction.del(destination)
           value -> count
-        }
+        }.toList
       }
     }
     transaction.del(audience)

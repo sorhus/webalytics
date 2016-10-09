@@ -9,7 +9,7 @@ trait MetaDao {
 
   def addMeta(bucket: Bucket, element: Element): Future[Any]
   def getDocumentId(element_id: ElementId): Long
-  def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])]
+  def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])]
   def time(name: String)(f: Nothing) = {
   }
 }
@@ -33,7 +33,7 @@ class CachedMetaDao(impl: MetaDao)(implicit context: ExecutionContext) extends M
 
   override def getDocumentId(element_id: ElementId): Long = impl.getDocumentId(element_id)
 
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = memoizeSync {
+  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])] = memoizeSync {
     impl.getDimensionValues(dimensions)
   }
 }
@@ -63,7 +63,7 @@ class DelayedBatchInsertMetaDao(impl: RedisMetaDao)(implicit context: ExecutionC
     id
   }
 
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = {
+  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])] = {
     impl.getDimensionValues(dimensions)
   }
 
@@ -76,6 +76,6 @@ class DelayedBatchInsertMetaDao(impl: RedisMetaDao)(implicit context: ExecutionC
 class DevNullMetaDao extends MetaDao {
   override def addMeta(bucket: Bucket, element: Element): Future[Any] = Future.successful("")
   override def getDocumentId(element_id: ElementId): Long = -1L
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = Nil
+  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])] = Nil
 }
 

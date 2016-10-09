@@ -1,20 +1,24 @@
 package com.github.sorhus.webalytics.model
 
+import java.util.UUID
+
 case class Bucket(b: String)
 case class Dimension(d: String)
 case class Value(v: String)
-case class ElementId(e: String)
+case class ElementId(e: String = UUID.randomUUID().toString)
+
+
 case class DocumentId(d: Long)
 case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension])
 case class Filter(f: List[List[Map[Bucket, Element]]])
 case class DataPoint(elementId: ElementId, element: Element)
 case class Space(s: Map[Dimension, List[Value]])
 
-case class Element(e: Map[Dimension, List[Value]]) {
+case class Element(e: Map[Dimension, Set[Value]]) {
   def +(that: Element) = {
     val keys = e.keys ++ that.e.keys
     val merged = keys.map{key =>
-      key -> (e.getOrElse(key, Nil) ++ that.e.getOrElse(key, Nil)).distinct
+      key -> (e.getOrElse(key, Set.empty) ++ that.e.getOrElse(key, Set.empty))
     }.toMap
     copy(e = merged)
   }
@@ -23,22 +27,22 @@ case class Element(e: Map[Dimension, List[Value]]) {
 object Element {
 
   def apply() = new Element(Map.empty)
-  def fromMap(data: Map[String, List[String]]): Element = {
+  def fromMap(data: Map[String, Set[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
   }
 
-  def merge(dimensionValues: List[Element]): Element = {
+  def merge(dimensionValues: Iterable[Element]): Element = {
 
-    val grouped: Map[Dimension, List[(Dimension, List[Value])]] = dimensionValues
+    val grouped: Map[Dimension, Iterable[(Dimension, Set[Value])]] = dimensionValues
       .flatMap(_.e.toList)
       .groupBy{case(dimension,values) =>
         dimension
       }
 
-    val e: Map[Dimension, List[Value]] = grouped.map{case(key, group) => // because mapValues does not serialize
+    val e: Map[Dimension, Set[Value]] = grouped.map{case(key, group) => // because mapValues does not serialize
       key -> group.flatMap{case(d, values) =>
         values
-      }.distinct
+      }.toSet
     }
 
     Element(e)
@@ -58,7 +62,7 @@ case class JsonQuery(
           and.map{ or =>
             or.map{case(b, e) =>
               Bucket(b) -> Element(e.map{case(d, v) =>
-                Dimension(d) -> v.map(Value.apply)
+                Dimension(d) -> v.map(Value.apply).toSet
               })
             }
           }

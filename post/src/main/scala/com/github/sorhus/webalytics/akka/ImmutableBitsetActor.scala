@@ -5,22 +5,18 @@ import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel.MapMode
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{ActorRef, Props}
-import akka.persistence.PersistentActor
+import akka.actor.{Actor, Props}
 import akka.util.Timeout
-import akka.pattern.ask
-import com.github.sorhus.webalytics.impl.{ImmutableRoaringBitmapWrapper, RoaringBitmapWrapper, SparseBitSetWrapper}
+import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
 import com.github.sorhus.webalytics.model._
 import org.roaringbitmap.RoaringBitmap
 import org.roaringbitmap.buffer.{BufferFastAggregation, ImmutableRoaringBitmap, MutableRoaringBitmap}
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.{Map => MMap, Set => MSet}
-import scala.concurrent.duration.Duration
-import scala.concurrent.Await
 import scala.util.Try
 
-class ImmutableBitsetActor(path: String) extends PersistentActor {
+class ImmutableBitsetActor(path: String) extends Actor {
 
   val log = LoggerFactory.getLogger(getClass)
 
@@ -28,12 +24,7 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
 
   var state: Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]] = Map.empty
 
-  override def receiveRecover: Receive = {
-    case x =>
-      log.info(s"Received Recover $x proceeding with noop")
-  }
-
-  override def receiveCommand: Receive = {
+  override def receive: Receive = {
 
     case QueryEvent(query: Query, space: Element) =>
       log.info("received query and space {}", (query, space))
@@ -49,6 +40,7 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
 
     case Initialize(bucket, space) =>
       state = read(bucket, space.get)
+      sender() ! Ack
 
     case MakeImmutable(bucket, bitsets) =>
       bitsets.foreach{case(dimension, values) =>
@@ -66,9 +58,10 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
         log.info("Closing outputstream for {}", dimension)
         dos.close()
       }
+      sender() ! Ack
   }
 
-  // This should be a plugin
+  // TODO This should be a plugin
   def write(bucket: Bucket, bitsets: Map[Dimension, Map[Value, Bitset[RoaringBitmap]]]) = {
     bitsets.foreach{case(dimension, values) =>
       val file = new File(s"$path/${bucket.b}/${dimension.d}")
@@ -103,7 +96,7 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
         val memoryMapped: MappedByteBuffer = file.getChannel.map(MapMode.READ_ONLY, 0, file.length())
         val bb = memoryMapped.slice()
         log.info(s"got bytebuffer {}", bb)
-        dimension -> values.sortBy(_.v).map{value =>
+        dimension -> values.toList.sortBy(_.v).map{value =>
           val bitset = new ImmutableRoaringBitmap(bb)
           log.info("Read bitset: {}", (bucket, dimension.d, value.v, bitset.getCardinality))
           log.info("At position: {}", (bb.position(), bitset.serializedSizeInBytes()))
@@ -123,9 +116,7 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
     result
   }
 
-  override def persistenceId: String = "immutable-bitset-actor"
-
-  def getCount(query: Query, dimensionValues: Map[Dimension, List[Value]]): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
+  def getCount(query: Query, dimensionValues: Map[Dimension, Set[Value]]): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
     val audience = getAudience(query.filter)
     query.buckets.map{ bucket =>
       bucket -> dimensionValues.map{case(dimension, values) =>
@@ -133,7 +124,7 @@ class ImmutableBitsetActor(path: String) extends PersistentActor {
           val bitset: Option[Bitset[ImmutableRoaringBitmap]] = Try(state(bucket)(dimension)(value)).toOption
           log.info("Found roaring for {}", (dimension, value, bitset))
           value -> bitset.map(bs => ImmutableRoaringBitmapWrapper.and(audience, bs).cardinality()).getOrElse(0L)
-        }
+        }.toList
       }.toList
     }
   }

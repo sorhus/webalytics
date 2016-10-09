@@ -49,11 +49,11 @@ class RedisMetaDao(implicit akkaSystem: ActorSystem) extends MetaDao {
 
   }
 
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, List[Value])] = {
+  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])] = {
     def getValues(dimensions: List[Dimension]) = {
       val transaction = redis.transaction()
-      val futures: List[(Dimension, Future[List[Value]])] = dimensions.map{ dimension =>
-        dimension -> transaction.smembers(values(dimension)).map(seq => seq.map(_.utf8String).map(Value.apply).toList)
+      val futures: List[(Dimension, Future[Set[Value]])] = dimensions.map{ dimension =>
+        dimension -> transaction.smembers(values(dimension)).map(seq => seq.map(_.utf8String).map(Value.apply).toSet)
       }
       transaction.exec()
       futures.map{case(dimension, values) =>

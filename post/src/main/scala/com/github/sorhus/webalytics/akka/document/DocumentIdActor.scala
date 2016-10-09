@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.akka
+package com.github.sorhus.webalytics.akka.document
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
@@ -33,8 +33,8 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
     log.info("handling event")
     state = state.update(event.elementId)
     val documentId = state.get(event.elementId)
-    queryActor ! PostMetaEvent(event.bucket, event.element)
     audienceActor forward PostEvent(event.bucket, documentId, event.element)
+    queryActor ! PostMetaEvent(event.bucket, event.element)
   }
 
   override def receiveCommand: Receive = {
@@ -69,15 +69,8 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
 }
 
 object DocumentIdActor {
-  def props(audienceActor: ActorRef, queryActor: ActorRef): Props = Props(new DocumentIdActor(audienceActor, queryActor))
+  def props(audienceActor: ActorRef, queryActor: ActorRef): Props =
+    Props(new DocumentIdActor(audienceActor, queryActor))
 }
 
-case class DocumentIds(counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
-  def get(elementId: ElementId): DocumentId = ids(elementId)
-  def update(elementId: ElementId): DocumentIds = {
-    if(ids.contains(elementId))
-      this
-    else
-      copy(counter + 1, ids + (elementId -> DocumentId(counter + 1)))
-  }
-}
+

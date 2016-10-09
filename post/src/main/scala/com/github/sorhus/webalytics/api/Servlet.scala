@@ -43,7 +43,7 @@ class Servlet(dao: AudienceDao)(implicit system: ActorSystem, metaDao: MetaDao) 
     attempt.toOption
       .map{ (s: Map[String, List[String]]) =>
         s.map{case(dimension: String, values: List[String]) =>
-          Dimension(dimension) -> values.map(v => Value(v))
+          Dimension(dimension) -> values.map(v => Value(v)).toSet
         }
       }
       .map(e => Element(e))

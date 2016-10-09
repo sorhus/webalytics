@@ -38,7 +38,7 @@ class BitsetDao[T](newBitset: () => Bitset[T]) extends AudienceDao {
   override def getCount(query: Query)(implicit metaDao: MetaDao): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
     val bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[T]]]] = getBitSets(query)
     val audience = getAudience(bitsets, query.filter)(metaDao)
-    val dimensionValues: List[(Dimension, Seq[Value])] = metaDao.getDimensionValues(query.dimensions)
+    val dimensionValues: List[(Dimension, Set[Value])] = metaDao.getDimensionValues(query.dimensions)
     query.buckets.map{ bucket =>
       bucket -> dimensionValues.map{case(dimension, values) =>
         dimension -> values.map{value =>
@@ -98,11 +98,11 @@ class BitsetDao[T](newBitset: () => Bitset[T]) extends AudienceDao {
       and.foreach{ or: Map[Bucket, Element] =>
         or.foreach{case(bucket, element) =>
           element.e.foreach{
-            case(dimension, Value("*") :: Nil) =>
-              val values = metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
-              values.foreach { value =>
-                destination.or(bitsets(bucket)(dimension)(value))
-              }
+//            case(dimension, Value("*") :: Nil) =>
+//              val values = metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
+//              values.foreach { value =>
+//                destination.or(bitsets(bucket)(dimension)(value))
+//              }
             case(dimension, values) =>
               values.foreach { value =>
                 destination.or(bitsets(bucket)(dimension)(value))
@@ -125,7 +125,7 @@ class ImmutableBitsetDao(bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[I
 
   override def getCount(query: Query)(implicit metaDao: MetaDao): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
     val audience = getAudience(bitsets, query.filter)(metaDao)
-    val dimensionValues: List[(Dimension, Seq[Value])] = metaDao.getDimensionValues(query.dimensions)
+    val dimensionValues: List[(Dimension, Set[Value])] = metaDao.getDimensionValues(query.dimensions)
     query.buckets.map{ bucket =>
       bucket -> dimensionValues.map{case(dimension, values) =>
         dimension -> values.map{value =>
@@ -143,11 +143,11 @@ class ImmutableBitsetDao(bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[I
       val ors: Seq[ImmutableRoaringBitmap] = and.flatMap{ or: Map[Bucket, Element] =>
         or.flatMap{case(bucket, element) =>
           element.e.flatMap{
-            case(dimension, Value("*") :: Nil) =>
-              val values = metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
-              values.map{ value =>
-                Try(bitsets(bucket)(dimension)(value)).toOption
-              }
+//            case(dimension, Value("*") :: Nil) =>
+//              val values = metaDao.getDimensionValues(dimension :: Nil).flatMap(_._2)
+//              values.map{ value =>
+//                Try(bitsets(bucket)(dimension)(value)).toOption
+//              }
             case(dimension, values) =>
               values.map{ value =>
                 Try(bitsets(bucket)(dimension)(value)).toOption

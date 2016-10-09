@@ -1,8 +1,11 @@
+#!/usr/bin/env bash
 
-x=0
-while read line; do
-  x=$((x + 1)) 
-  echo "curling $x"
-  sleep 0.003
-  curl -XPOST -H "Content-Type: application/json" localhost:9000/post/user/$(uuidgen) -d $line &
-done < tmp
+time curl -H "Content-Type: application/json" -XPOST localhost:9000/batch/post/user --data-binary @tmp
+time curl -H "Content-Type: application/json" -XGET localhost:9000/count -d '{"filter":[[{"user":{"referrer":["TWITTER"]}}]],"buckets":["user"],"dimensions":["gender"]}' > result
+echo >> result
+time curl -H "Content-Type: application/json" -XPOST localhost:9000/immutate/user
+time curl -H "Content-Type: application/json" -XPOST localhost:9000/immutate/init/user
+time curl -H "Content-Type: application/json" -XGET localhost:9000/count/static -d '{"filter":[[{"user":{"referrer":["TWITTER"]}}]],"buckets":["user"],"dimensions":["gender"]}' >> result
+echo >> result
+time curl -H "Content-Type: application/json" -XGET localhost:9000/count -d '{"filter":[[{"user":{"referrer":["TWITTER"]}}]],"buckets":["user"],"dimensions":["gender"]}' >> result
+echo >> result

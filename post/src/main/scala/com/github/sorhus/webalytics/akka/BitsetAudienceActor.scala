@@ -33,7 +33,10 @@ class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentAct
       log.info("received recover {}", x)
   }
 
-  def handle(e: PostEvent): Unit = state.post(e)
+  def handle(e: PostEvent): Unit = {
+    sender() ! Ack
+    state.post(e)
+  }
 
   override def receiveCommand: Receive = {
 
@@ -61,7 +64,7 @@ class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentAct
       saveSnapshot(state)
 
     case Immutate(bucket) =>
-      immutableActor ! MakeImmutable(bucket, state.bitsets(bucket))
+      immutableActor forward MakeImmutable(bucket, state.bitsets(bucket))
 
     case Shutdown => sender() ! context.stop(self)
 
@@ -115,14 +118,14 @@ class BitsetState[T](newBitset: () => Bitset[T]) extends Serializable {
     }
   }
 
-  def getCount(query: Query, dimensionValues: Map[Dimension, List[Value]]): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
+  def getCount(query: Query, dimensionValues: Map[Dimension, Set[Value]]): List[(Bucket, List[(Dimension, List[(Value, Long)])])] = {
     val audience = getAudience(query.filter)
     query.buckets.map{ bucket =>
       bucket -> dimensionValues.map{case(dimension, values) =>
         dimension -> values.map{value =>
           val bitset = Try(bitsets(bucket)(dimension)(value)).toOption
           value -> bitset.map(bs => staticBitSet.and(audience, bs).cardinality()).getOrElse(0L)
-        }
+        }.toList
       }.toList
     }
   }

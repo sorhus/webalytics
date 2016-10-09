@@ -7,7 +7,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, BitsetState, DimensionValueActor, DocumentIdActor}
+import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, BitsetState}
 import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
 import com.github.sorhus.webalytics.model._
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
@@ -18,6 +18,8 @@ import org.roaringbitmap.buffer.ImmutableRoaringBitmap
 import org.slf4j.LoggerFactory
 import akka.pattern.ask
 import akka.util.Timeout
+import com.github.sorhus.webalytics.akka.document.DocumentIdActor
+import com.github.sorhus.webalytics.akka.meta.{MetaDataActor, MetaDataActor$}
 
 import scala.collection.mutable
 import scala.concurrent.{Await, Future}
@@ -60,7 +62,7 @@ object BitsetLoader extends App {
 //    case _ => new DelayedBatchInsertMetaDao(new RedisMetaDao())
 //  }
   val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(null), "audience")
-  val queryActor: ActorRef = system.actorOf(DimensionValueActor.props(audienceActor), "meta")
+  val queryActor: ActorRef = system.actorOf(MetaDataActor.props(audienceActor), "meta")
   val documentActor: ActorRef = system.actorOf(DocumentIdActor.props(audienceActor, queryActor), "document")
 
   val loader = new BitsetLoader()
@@ -105,14 +107,14 @@ class BitsetLoader {
           val element = parse(json)
             .extract[Map[String, List[String]]]
             .map { case (dimension: String, values: List[String]) =>
-              Dimension(dimension) -> values.map(v => Value(v))
+              Dimension(dimension) -> values.map(v => Value(v)).toSet
             }
           (ElementId(elementId), Element(element))
         case Array(json) =>
           val element = parse(json)
             .extract[Map[String, List[String]]]
             .map { case (dimension: String, values: List[String]) =>
-              Dimension(dimension) -> values.map(v => Value(v))
+              Dimension(dimension) -> values.map(v => Value(v)).toSet
             }
           (ElementId(UUID.randomUUID().toString), Element(element))
       }
@@ -157,7 +159,7 @@ class BitsetLoader {
         val memoryMapped: MappedByteBuffer = file.getChannel.map(MapMode.READ_ONLY, 0, file.length())
         val bb = memoryMapped.slice()
         log.info(s"got bytebuffer {}", bb)
-        dimension -> values.sortBy(_.v).map{value =>
+        dimension -> values.toList.sortBy(_.v).map{value =>
           val bitset = new ImmutableRoaringBitmap(bb)
           log.info("Read bitset: {}", (bucket, dimension.d, value.v, bitset.getCardinality))
           log.info("At position: {}", (bb.position(), bitset.serializedSizeInBytes()))
