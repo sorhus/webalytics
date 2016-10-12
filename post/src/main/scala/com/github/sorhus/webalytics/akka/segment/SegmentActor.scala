@@ -1,0 +1,90 @@
+package com.github.sorhus.webalytics.akka.segment
+
+import akka.actor.{ActorRef, Props}
+import akka.persistence._
+import com.github.sorhus.webalytics.model._
+import org.slf4j.LoggerFactory
+
+class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
+
+  val log = LoggerFactory.getLogger(getClass)
+
+  var state = new MutableState()
+
+  override def persistenceId: String = "bitset-audience-actor"
+
+  override def receiveRecover: Receive = {
+
+    case e: PostEvent =>
+      log.debug("received recover postevent")
+      state.post(e)
+
+    case SnapshotOffer(_, snapshot: MutableState) =>
+      log.info("received recover snapshot {}", snapshot)
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+  }
+
+  def handle(e: PostEvent): Unit = {
+//    sender() ! Ack
+    state.post(e)
+  }
+
+  override def receiveCommand: Receive = {
+
+    case e: PostEvent =>
+      log.debug("received postevent")
+//      persist(e)(handle)
+//      persistAsync(e)(handle)
+      handle(e)
+
+    case QueryEvent(query: Query, space: Element) =>
+      log.debug("received query and space {}", (query, space))
+      val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
+        .map{case(bucket, dimensions) =>
+          bucket.b -> dimensions.map{case(dimension, values) =>
+          dimension.d -> values.map{case(value, count) =>
+            value.v -> count
+          }.toMap
+        }.toMap
+      }.toMap
+      sender() ! response
+
+    case CloseBucket(bucket) =>
+      log.info("closing bucket")
+      state remove bucket
+      sender() ! Ack
+
+    case SaveSnapshot =>
+      log.info("saving snapshot")
+      saveSnapshot(state)
+
+    case cmd @ MakeImmutable(bucket, _) =>
+      immutableActor forward cmd.copy(bitsets = state.bitsets(bucket))
+
+    case Shutdown => sender() ! context.stop(self)
+
+    case Debug => state.debug()
+
+    case SaveSnapshotSuccess(metadata) =>
+      log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+
+    case SaveSnapshotFailure(_, reason) =>
+      log.info("failed to save snapshot: {}", reason)
+
+    case x =>
+      log.info(s"audience recieved {}", x)
+
+  }
+
+}
+
+object SegmentActor {
+  def props(immutableActor: ActorRef): Props = Props(new SegmentActor(immutableActor))
+  def props(): Props = Props(new SegmentActor())
+}
+
+
+

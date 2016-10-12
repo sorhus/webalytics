@@ -1,10 +1,10 @@
-package com.github.sorhus.webalytics.akka.meta
+package com.github.sorhus.webalytics.akka.domain
 
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import com.github.sorhus.webalytics.model.PostMetaEvent
 import org.slf4j.LoggerFactory
 
-trait TMetaDataActor extends PersistentActor {
+trait TDomainActor extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
@@ -19,7 +19,6 @@ trait TMetaDataActor extends PersistentActor {
   override def receiveRecover: Receive = {
 
     case e: PostMetaEvent =>
-//      log.info("received recover postmetaevent {}", e)
       log.info("received recover postmetaevent")
       handle(e)
 

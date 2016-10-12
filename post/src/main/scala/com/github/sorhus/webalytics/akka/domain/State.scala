@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.akka.meta
+package com.github.sorhus.webalytics.akka.domain
 
 import com.github.sorhus.webalytics.model.{Bucket, Dimension, Element, PostMetaEvent}
 

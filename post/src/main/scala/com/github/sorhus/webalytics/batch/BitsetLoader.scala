@@ -7,19 +7,17 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import com.github.sorhus.webalytics.akka.{BitsetAudienceActor, BitsetState}
 import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
 import com.github.sorhus.webalytics.model._
-import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods._
-import org.roaringbitmap.RoaringBitmap
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap
 import org.slf4j.LoggerFactory
 import akka.pattern.ask
 import akka.util.Timeout
 import com.github.sorhus.webalytics.akka.document.DocumentIdActor
-import com.github.sorhus.webalytics.akka.meta.{MetaDataActor, MetaDataActor$}
+import com.github.sorhus.webalytics.akka.domain.DomainActor
+import com.github.sorhus.webalytics.akka.segment.{MutableState, SegmentActor}
 
 import scala.collection.mutable
 import scala.concurrent.{Await, Future}
@@ -61,8 +59,8 @@ object BitsetLoader extends App {
 //    case Some("devnull") => new DevNullMetaDao
 //    case _ => new DelayedBatchInsertMetaDao(new RedisMetaDao())
 //  }
-  val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(null), "audience")
-  val queryActor: ActorRef = system.actorOf(MetaDataActor.props(audienceActor), "meta")
+  val audienceActor: ActorRef = system.actorOf(SegmentActor.props(null), "audience")
+  val queryActor: ActorRef = system.actorOf(DomainActor.props(audienceActor), "meta")
   val documentActor: ActorRef = system.actorOf(DocumentIdActor.props(audienceActor, queryActor, 0), "document")
 
   val loader = new BitsetLoader()
@@ -124,7 +122,7 @@ class BitsetLoader {
       }
   }
 
-  def write(path: String, state: BitsetState[RoaringBitmap]) = {
+  def write(path: String, state: MutableState) = {
     state.bitsets.foreach{case(bucket, dimvals) =>
       dimvals.foreach{case(dimension, values) =>
         val file = new File(s"$path/${bucket.b}/${dimension.d}")

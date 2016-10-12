@@ -18,7 +18,7 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
 
     case e: PostEvent =>
 //      log.info("received recover postevent {}", e)
-      log.info("received recover postevent")
+      log.debug("received recover postevent")
       state = state.update(e.elementId, e.documentId)
       post(e)
 
@@ -47,7 +47,7 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
 
     case e: PostCommand =>
 //      log.info("received postevent {}", e)
-      log.info("received postevent")
+      log.debug("received postevent")
       state = state.update(e.elementId)
       val documentId = state.get(e.elementId)
 //      persist(e)(handle)

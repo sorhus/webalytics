@@ -1,20 +1,18 @@
-package com.github.sorhus.webalytics.akka.meta
+package com.github.sorhus.webalytics.akka.domain
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
 import com.github.sorhus.webalytics.model._
 
-class MetaDataActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) extends TMetaDataActor {
+class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) extends TDomainActor {
 
   override def receiveCommand: Receive = {
 
     case e: PostMetaEvent =>
-//      log.info("received {}", e)
-      log.info("received postmetaevent")
+      log.debug("received postmetaevent")
 //      persist(e)(handle)
 //      persistAsync(e)(handle)
       handle(e)
-      readOnlyMetaActor.foreach(_ ! e)
 
     case query: Query =>
       log.info("received query {}", query)
@@ -26,7 +24,7 @@ class MetaDataActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]
       sender() ! state.getAll
 
     case SaveSnapshot =>
-      log.info("saving snapshot: {}", state)
+      log.info("saving snapshot")
       saveSnapshot(state)
 
     case Shutdown =>
@@ -46,11 +44,27 @@ class MetaDataActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]
 
   }
 
+  override def receiveRecover: Receive = {
+
+    case e: PostMetaEvent =>
+      log.debug("received recover postmetaevent")
+      handle(e)
+
+    case SnapshotOffer(_, snapshot: State) =>
+      log.info("restoring state from snapshot")
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+
+  }
+
+
 }
 
-object MetaDataActor {
+object DomainActor {
   def props(audienceDao: ActorRef, readOnlyMetaActor: Option[ActorRef] = None): Props = {
-    Props(new MetaDataActor(audienceDao, readOnlyMetaActor))
+    Props(new DomainActor(audienceDao, readOnlyMetaActor))
   }
 }
 

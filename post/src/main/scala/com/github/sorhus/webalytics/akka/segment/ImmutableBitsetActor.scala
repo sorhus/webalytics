@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.akka
+package com.github.sorhus.webalytics.akka.segment
 
 import java.io.{DataOutputStream, File, FileOutputStream, RandomAccessFile}
 import java.nio.MappedByteBuffer
@@ -10,7 +10,7 @@ import akka.util.Timeout
 import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
 import com.github.sorhus.webalytics.model._
 import org.roaringbitmap.RoaringBitmap
-import org.roaringbitmap.buffer.{BufferFastAggregation, ImmutableRoaringBitmap, MutableRoaringBitmap}
+import org.roaringbitmap.buffer.{BufferFastAggregation, ImmutableRoaringBitmap}
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.{Map => MMap, Set => MSet}
@@ -38,7 +38,7 @@ class ImmutableBitsetActor(path: String) extends Actor {
         }.toMap
       sender() ! response
 
-    case Initialize(bucket, space) =>
+    case LoadImmutable(bucket, space) =>
       state = read(bucket, space.get)
       sender() ! Ack
 
@@ -131,7 +131,7 @@ class ImmutableBitsetActor(path: String) extends Actor {
 
   private def getAudience(filter: Filter): Bitset[ImmutableRoaringBitmap] = {
     log.info("Computing audience for {}", filter)
-    val toAnd: List[MutableRoaringBitmap] = filter.f.map{ and: List[Map[Bucket, Element]] =>
+    val toAnd: List[ImmutableRoaringBitmap] = filter.f.map{ and: List[Map[Bucket, Element]] =>
       val toOr: List[Bitset[ImmutableRoaringBitmap]] = and.flatMap{ or: Map[Bucket, Element] =>
         or.toList.flatMap{case(bucket, element) =>
           element.e.flatMap{
@@ -144,11 +144,11 @@ class ImmutableBitsetActor(path: String) extends Actor {
           }
         }
       }
-      ImmutableRoaringBitmap.or(toOr.map(_.impl()): _*)
+      BufferFastAggregation.or(toOr.map(_.impl()): _*).toImmutableRoaringBitmap
     }
-    val result = new ImmutableRoaringBitmapWrapper(BufferFastAggregation.and(toAnd: _*).toImmutableRoaringBitmap)
-    log.info("Audience computed with cardinality {}", result.cardinality())
-    result
+    val result: ImmutableRoaringBitmap = BufferFastAggregation.and(toAnd: _*).toImmutableRoaringBitmap
+    log.info("Audience computed with cardinality {}", result.getCardinality)
+    new ImmutableRoaringBitmapWrapper(result)
   }
 
 }

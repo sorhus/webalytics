@@ -1,6 +1,6 @@
 package com.github.sorhus.webalytics.akka
 
-import akka.actor.{Actor, ActorRef, DeadLetter, Props}
+import akka.actor.{Actor, DeadLetter, Props}
 import org.slf4j.LoggerFactory
 
 class DeadLetterLoggingActor extends Actor {
@@ -11,7 +11,7 @@ class DeadLetterLoggingActor extends Actor {
   def receive = {
     case DeadLetter(msg, from, to) =>
       count += 1
-      log.info(s"received dead letter no $count, {}", (msg, from, to))
+      log.warn(s"received dead letter no $count, {}", (msg, from, to))
   }
 }
 
