@@ -13,7 +13,6 @@ import scala.collection.mutable.{Map => MMap}
 class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
-  log.info(s"$getClass alive")
 
   var state = new BitsetState[RoaringBitmap](new RoaringBitmapWrapper().create _)
 
@@ -22,7 +21,8 @@ class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentAct
   override def receiveRecover: Receive = {
 
     case e: PostEvent =>
-      log.info("received recover postevent {}", e)
+//      log.info("received recover postevent {}", e)
+      log.info("received recover postevent")
       state.post(e)
 
     case SnapshotOffer(_, snapshot: BitsetState[RoaringBitmap]) =>
@@ -34,16 +34,18 @@ class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentAct
   }
 
   def handle(e: PostEvent): Unit = {
-    sender() ! Ack
+//    sender() ! Ack
     state.post(e)
   }
 
   override def receiveCommand: Receive = {
 
     case e: PostEvent =>
-      log.info("received postevent {}", e)
-      /*sender() ! */persist(e)(handle)
-    //      state.debug()
+//      log.info("received postevent {}", e)
+      log.info("received postevent")
+//      persist(e)(handle)
+//      persistAsync(e)(handle)
+      handle(e)
 
     case QueryEvent(query: Query, space: Element) =>
       log.info("received query and space {}", (query, space))
@@ -57,14 +59,17 @@ class BitsetAudienceActor(immutableActor: ActorRef = null) extends PersistentAct
       }.toMap
       sender() ! response
 
-    case CloseBucket(b) => log.info("TODO implement")
+    case CloseBucket(bucket) =>
+      log.info("closing bucket")
+      state remove bucket
+      sender() ! Ack
 
     case SaveSnapshot =>
       log.info("saving snapshot")
       saveSnapshot(state)
 
-    case Immutate(bucket) =>
-      immutableActor forward MakeImmutable(bucket, state.bitsets(bucket))
+    case cmd @ MakeImmutable(bucket, _) =>
+      immutableActor forward cmd.copy(bitsets = state.bitsets(bucket))
 
     case Shutdown => sender() ! context.stop(self)
 
@@ -95,6 +100,10 @@ class BitsetState[T](newBitset: () => Bitset[T]) extends Serializable {
 
   private[webalytics] val bitsets = MMap[Bucket,MMap[Dimension,MMap[Value, Bitset[T]]]]()
   val staticBitSet: Bitset[T] = newBitset()
+
+  def remove(bucket: Bucket) = {
+    bitsets.remove(bucket)
+  }
 
   def debug() = {
     bitsets.foreach{case (bucket, elements) =>

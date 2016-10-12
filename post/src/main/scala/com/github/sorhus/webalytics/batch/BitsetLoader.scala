@@ -63,7 +63,7 @@ object BitsetLoader extends App {
 //  }
   val audienceActor: ActorRef = system.actorOf(BitsetAudienceActor.props(null), "audience")
   val queryActor: ActorRef = system.actorOf(MetaDataActor.props(audienceActor), "meta")
-  val documentActor: ActorRef = system.actorOf(DocumentIdActor.props(audienceActor, queryActor), "document")
+  val documentActor: ActorRef = system.actorOf(DocumentIdActor.props(audienceActor, queryActor, 0), "document")
 
   val loader = new BitsetLoader()
 //  loader.load(bucket, in, audienceDao)(metaDao)
@@ -119,7 +119,7 @@ class BitsetLoader {
           (ElementId(UUID.randomUUID().toString), Element(element))
       }
       .map { case (elementId, element) =>
-        postActor ? PostEvent1(bucket, elementId, element)
+        postActor ? PostCommand(bucket, elementId, element)
 //        audienceDao.post(bucket, elementId, element)
       }
   }

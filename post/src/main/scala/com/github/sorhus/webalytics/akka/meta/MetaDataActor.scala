@@ -4,13 +4,17 @@ import akka.actor.{ActorRef, Props}
 import akka.persistence._
 import com.github.sorhus.webalytics.model._
 
-class MetaDataActor(audienceActor: ActorRef) extends TMetaDataActor {
+class MetaDataActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) extends TMetaDataActor {
 
   override def receiveCommand: Receive = {
 
     case e: PostMetaEvent =>
-      log.info("received {}", e)
-      persist(e)(handle)
+//      log.info("received {}", e)
+      log.info("received postmetaevent")
+//      persist(e)(handle)
+//      persistAsync(e)(handle)
+      handle(e)
+      readOnlyMetaActor.foreach(_ ! e)
 
     case query: Query =>
       log.info("received query {}", query)
@@ -38,14 +42,16 @@ class MetaDataActor(audienceActor: ActorRef) extends TMetaDataActor {
       log.info("failed to save snapshot", reason)
 
     case x =>
-      log.info(s"recieved $x")
+      log.info(s"received $x")
 
   }
 
 }
 
 object MetaDataActor {
-  def props(audienceDao: ActorRef): Props = Props(new MetaDataActor(audienceDao))
+  def props(audienceDao: ActorRef, readOnlyMetaActor: Option[ActorRef] = None): Props = {
+    Props(new MetaDataActor(audienceDao, readOnlyMetaActor))
+  }
 }
 
 

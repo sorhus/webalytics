@@ -157,4 +157,4 @@ object ImmutableBitsetActor {
   def props(path: String) = Props(new ImmutableBitsetActor(path))
 }
 
-case class MakeImmutable(bucket: Bucket, bitsets: MMap[Dimension, MMap[Value, Bitset[RoaringBitmap]]])
+case class MakeImmutable(bucket: Bucket, bitsets: MMap[Dimension, MMap[Value, Bitset[RoaringBitmap]]] = MMap())

@@ -5,20 +5,22 @@ import akka.persistence._
 import com.github.sorhus.webalytics.model._
 import org.slf4j.LoggerFactory
 
-class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends PersistentActor {
+class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n: Int) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
   log.info(s"$getClass alive")
 
-  var state = DocumentIds()
+  var state = DocumentIds(n, counter = id)
 
-  override def persistenceId: String = "document-id-actor"
+  override def persistenceId: String = s"document-id-actor-$id"
 
   override def receiveRecover: Receive = {
 
-    case e: PostEvent1 =>
-      log.info("received recover postevent {}", e)
-      state = state.update(e.elementId)
+    case e: PostEvent =>
+//      log.info("received recover postevent {}", e)
+      log.info("received recover postevent")
+      state = state.update(e.elementId, e.documentId)
+      post(e)
 
     case SnapshotOffer(_, snapshot: DocumentIds) =>
       log.info("restoring state from snapshot")
@@ -29,19 +31,28 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
 
   }
 
-  def handle(event: PostEvent1): Unit = {
-    log.info("handling event")
-    state = state.update(event.elementId)
-    val documentId = state.get(event.elementId)
-    audienceActor forward PostEvent(event.bucket, documentId, event.element)
+  def post(event: PostEvent): Unit = {
+    audienceActor ! event
     queryActor ! PostMetaEvent(event.bucket, event.element)
+  }
+
+  def notifyAndPost(event: PostEvent): Unit = {
+//    log.info("handling event")
+//    audienceActor forward event
+    sender() ! Ack
+    post(event)
   }
 
   override def receiveCommand: Receive = {
 
-    case e: PostEvent1 =>
-      log.info("received postevent {}", e)
-      persist(e)(handle)
+    case e: PostCommand =>
+//      log.info("received postevent {}", e)
+      log.info("received postevent")
+      state = state.update(e.elementId)
+      val documentId = state.get(e.elementId)
+//      persist(e)(handle)
+      val postEvent = PostEvent(e.bucket, e.elementId, documentId, e.element)
+      persistAsync(postEvent)(notifyAndPost)
 
     case SaveSnapshot =>
       log.info("saving snapshot")
@@ -69,8 +80,8 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
 }
 
 object DocumentIdActor {
-  def props(audienceActor: ActorRef, queryActor: ActorRef): Props =
-    Props(new DocumentIdActor(audienceActor, queryActor))
+  def props(audienceActor: ActorRef, queryActor: ActorRef, id: Int = 0, n: Int = 1): Props =
+    Props(new DocumentIdActor(audienceActor, queryActor, id, n))
 }
 
 

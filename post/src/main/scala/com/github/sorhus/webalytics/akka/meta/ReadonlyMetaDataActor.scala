@@ -21,7 +21,7 @@ class ReadonlyMetaDataActor(audienceActor: ActorRef) extends TMetaDataActor {
   override def receiveCommand: Receive = {
 
     case e: PostMetaEvent =>
-      log.info("received postmetaevent {}", e)
+      log.info("received postmetaevent")
       handle(e)
 
     case query: Query =>

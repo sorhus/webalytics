@@ -2,14 +2,15 @@ package com.github.sorhus.webalytics.model
 
 import java.util.UUID
 
-case class Bucket(b: String)
-case class Dimension(d: String)
-case class Value(v: String)
-case class ElementId(e: String = UUID.randomUUID().toString)
+//sealed trait Model with AnyVal
 
+case class Bucket(b: String) //extends AnyVal
+case class Dimension(d: String) //extends AnyVal
+case class Value(v: String) //extends AnyVal
+case class ElementId(e: String = UUID.randomUUID().toString) //extends AnyVal
+case class DocumentId(d: Long) //extends AnyVal
 
-case class DocumentId(d: Long)
-case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension])
+case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension], immutable: Boolean = false)
 case class Filter(f: List[List[Map[Bucket, Element]]])
 case class DataPoint(elementId: ElementId, element: Element)
 case class Space(s: Map[Dimension, List[Value]])
@@ -86,8 +87,8 @@ object JsonResult {
   }
 }
 
-case class PostEvent(bucket: Bucket, documentId: DocumentId, element: Element)
+case class PostEvent(bucket: Bucket, elementId: ElementId, documentId: DocumentId, element: Element)
 case class PostMetaEvent(bucket: Bucket, element: Element)
-case class PostEvent1(bucket: Bucket, elementId: ElementId, element: Element)
+case class PostCommand(bucket: Bucket, elementId: ElementId, element: Element)
 case class QueryEvent(query: Query, space: Element)
 case class CloseBucket(b: Bucket)

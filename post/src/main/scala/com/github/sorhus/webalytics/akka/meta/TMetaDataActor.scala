@@ -19,7 +19,8 @@ trait TMetaDataActor extends PersistentActor {
   override def receiveRecover: Receive = {
 
     case e: PostMetaEvent =>
-      log.info("received recover postmetaevent {}", e)
+//      log.info("received recover postmetaevent {}", e)
+      log.info("received recover postmetaevent")
       handle(e)
 
     case SnapshotOffer(_, snapshot: State) =>
