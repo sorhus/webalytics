@@ -14,7 +14,7 @@ trait TDomainActor extends PersistentActor {
     state = state.update(e)
   }
 
-  override def persistenceId: String = "dimension-value-actor"
+  override def persistenceId: String = "domain-actor"
 
   override def receiveRecover: Receive = {
 

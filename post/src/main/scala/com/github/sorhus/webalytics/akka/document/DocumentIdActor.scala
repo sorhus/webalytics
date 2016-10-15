@@ -35,8 +35,6 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
   }
 
   def notifyAndPost(event: PostEvent): Unit = {
-//    log.info("handling event")
-//    audienceActor forward event
     sender() ! Ack
     post(event)
   }
@@ -44,11 +42,9 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
   override def receiveCommand: Receive = {
 
     case e: PostCommand =>
-//      log.info("received postevent {}", e)
       log.debug("received postevent")
       state = state.update(e.elementId)
       val documentId = state.get(e.elementId)
-//      persist(e)(handle)
       val postEvent = PostEvent(e.bucket, e.elementId, documentId, e.element)
       persistAsync(postEvent)(notifyAndPost)
 

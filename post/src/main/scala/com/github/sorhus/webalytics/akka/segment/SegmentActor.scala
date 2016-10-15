@@ -11,7 +11,7 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
 
   var state = new MutableSegmentState
 
-  override def persistenceId: String = "bitset-audience-actor"
+  override def persistenceId: String = "segment-actor"
 
   override def receiveRecover: Receive = {
 
@@ -58,16 +58,15 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
       sender() ! Ack
 
     case SaveSnapshot =>
-      // This should only be called after the "child" actors have been snapshot
       log.info("saving snapshot")
       saveSnapshot(state)
 
     case cmd @ MakeImmutable(bucket, _) =>
-//      immutableActor forward cmd.copy(bitsets = state.bitsets(bucket))
       // TODO don't send the entire thing
-      immutableActor forward cmd.copy(state = Some(state.bitsets))
+      immutableActor forward cmd.copy(state = state.getCopy(bucket))
 
-    case Shutdown => sender() ! context.stop(self)
+    case Shutdown =>
+      sender() ! context.stop(self)
 
 //    case Debug => state.debug()
 

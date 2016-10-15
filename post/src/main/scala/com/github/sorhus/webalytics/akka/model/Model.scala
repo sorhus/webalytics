@@ -24,7 +24,7 @@ case class Element(e: Map[Dimension, Set[Value]]) extends Model {
 
 object Element {
   def apply() = new Element(Map.empty)
-  val root: Element = fromMap(Map("" -> Set("")))
+  val root: Element = fromMap(Map("root" -> Set("root")))
   def fromMap(data: Map[String, Set[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
   }

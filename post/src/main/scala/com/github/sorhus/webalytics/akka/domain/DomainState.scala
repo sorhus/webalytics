@@ -9,6 +9,8 @@ case class DomainState(data: Map[Bucket, Element] = Map[Bucket, Element]()) exte
     copy(data = data + (event.bucket -> merged))
   }
 
+  def get(bucket: Bucket): Element = data(bucket)
+
   def get(dimensions: List[Dimension]): Element = {
     dimensions match {
       case Dimension("*") :: Nil =>

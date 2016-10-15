@@ -15,7 +15,8 @@ class ImmutableSegmentActor(path: String) extends Actor {
 
   implicit val timeout = Timeout(1, TimeUnit.MINUTES)
 
-  var state = new ImmutableSegmentState("")
+  // TODO
+  var state = new ImmutableSegmentState("roaring")
 
   override def receive: Receive = {
 
@@ -36,21 +37,22 @@ class ImmutableSegmentActor(path: String) extends Actor {
       sender() ! Ack
 
     case MakeImmutable(bucket, state) =>
-      state.get.get(bucket).foreach{case(dimension, values) =>
-        val file = new File(s"$path/${bucket.b}/${dimension.d}")
-        file.getParentFile.mkdirs()
-        file.createNewFile()
-        val fos = new FileOutputStream(file)
-        val dos = new DataOutputStream(fos)
-        val bytes = 0
-        values.toList.sortBy(_._1.v).foreach{case(value, bitset) =>
-          bitset.impl().runOptimize()
-          log.info("Writing bitset: {} with bytes: ", (bucket.b, dimension.d, value.v, bitset.cardinality(), bitset.impl().serializedSizeInBytes()))
-          bitset.impl().serialize(dos)
-        }
-        log.info("Closing outputstream for {}", dimension)
-        dos.close()
-      }
+      this.state.write(bucket, state)
+//      state.foreach{case(dimension, values) =>
+//        val file = new File(s"$path/${bucket.b}/${dimension.d}")
+//        file.getParentFile.mkdirs()
+//        file.createNewFile()
+//        val fos = new FileOutputStream(file)
+//        val dos = new DataOutputStream(fos)
+//        val bytes = 0
+//        values.toList.sortBy(_._1.v).foreach{case(value, bitset) =>
+//          bitset.impl().runOptimize()
+//          log.info("Writing bitset: {} with bytes: ", (bucket.b, dimension.d, value.v, bitset.cardinality(), bitset.impl().serializedSizeInBytes()))
+//          bitset.impl().serialize(dos)
+//        }
+//        log.info("Closing outputstream for {}", dimension)
+//        dos.close()
+//      }
       sender() ! Ack
   }
 

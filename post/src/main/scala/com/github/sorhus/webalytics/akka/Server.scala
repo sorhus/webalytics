@@ -52,6 +52,15 @@ object Server extends App with Directives with JsonSupport {
 //        complete("")
 //      }
 //    } ~
+      path("count"/ Segment) { bucket =>
+        post {
+            complete {
+              val b = Bucket(bucket)
+              (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil))
+                .mapTo[Map[String, Map[String, Map[String, Long]]]]
+            }
+        }
+      } ~
     path("count") {
       post {
         entity(as[JsonQuery]) { jsonQuery =>
@@ -62,6 +71,16 @@ object Server extends App with Directives with JsonSupport {
         }
       }
     } ~
+    path("count"/ "immutable" / Segment) { bucket =>
+      post {
+        complete {
+          val b = Bucket(bucket)
+          (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil, immutable = true))
+            .mapTo[Map[String, Map[String, Map[String, Long]]]]
+        }
+      }
+    } ~
+  // TODO fixme
       path("count" / "immutable") {
         post {
           entity(as[JsonQuery]) { jsonQuery =>

@@ -1,65 +1,58 @@
 package com.github.sorhus.webalytics.akka
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
-import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Router}
+import akka.util.Timeout
 import com.github.sorhus.webalytics.akka.document.DocumentIdActor
-import com.github.sorhus.webalytics.akka.domain.{DomainActor, ReadOnlyDomainActor}
+import com.github.sorhus.webalytics.akka.domain.DomainActor
 import com.github.sorhus.webalytics.akka.segment.{ImmutableSegmentActor, SegmentActor}
 import com.github.sorhus.webalytics.akka.model._
 
-class RoutingActor(router: Router, metaActor: ActorRef, audienceActor: ActorRef, readonlyMetaActor: ActorRef) extends Actor {
+import scala.concurrent.ExecutionContext
+
+class RoutingActor(documentActor: ActorRef, domainActor: ActorRef, segmentActor: ActorRef) extends Actor {
+
+  // TODO pass these
+  implicit val timeout = Timeout(1, TimeUnit.MINUTES)
+  implicit val ec = ExecutionContext.Implicits.global
 
   override def receive: Receive = {
 
     case e: PostCommand =>
-      router.route(e, sender())
+      documentActor forward e
 
     case query: Query =>
-      if(query.immutable) {
-        readonlyMetaActor forward query
-      } else {
-        metaActor forward query
-      }
+      domainActor forward query
 
     case SaveSnapshot =>
-      router.routees.foreach(r => r.send(SaveSnapshot, sender()))
-      metaActor ! SaveSnapshot
-      audienceActor ! SaveSnapshot
-
-      // TODO do this after ^^ success
-      router.routees.foreach(r => r.send(SaveSnapshot, sender()))
-
-      // TODO make sure success
+      domainActor ! SaveSnapshot
+      segmentActor ! SaveSnapshot
+      documentActor ! SaveSnapshot
+      // TODO would be nice to be able to guarantee snapshot success at this point
       sender() ! Ack
 
     case i: LoadImmutable =>
-      readonlyMetaActor forward i
+      domainActor forward i
 
     case m: MakeImmutable =>
-      audienceActor forward m
+      segmentActor forward m
 
     case c: CloseBucket =>
-      audienceActor forward c
+      segmentActor forward c
   }
 }
 
 
 object RoutingActor {
   def props()(implicit system: ActorSystem) = {
-    val immutableBitsetActor = system.actorOf(ImmutableSegmentActor.props("roaring")) // TODO don't hardcode
-    val readonlyMetaActor = system.actorOf(ReadOnlyDomainActor.props(immutableBitsetActor), "readonly-meta")
+    val immutableSegmentActor = system.actorOf(ImmutableSegmentActor.props("roaring")) // TODO don't hardcode
 
-    val audienceActor: ActorRef = system.actorOf(SegmentActor.props(immutableBitsetActor), "audience")
-    val metaActor: ActorRef = system.actorOf(DomainActor.props(audienceActor, Some(readonlyMetaActor)), "meta")
-    val n = 1
-    val routees = Range(0,n).map{ id =>
-      ActorRefRoutee(
-        system.actorOf(DocumentIdActor.props(audienceActor, metaActor, id, n), s"document-$id")
-      )
-    }
+    val segmentActor: ActorRef = system.actorOf(SegmentActor.props(immutableSegmentActor), "segment")
+    val metaActor: ActorRef = system.actorOf(DomainActor.props(segmentActor, immutableSegmentActor), "domain")
 
-    val router = Router(RoundRobinRoutingLogic(), routees)
+    val documentActor = system.actorOf(DocumentIdActor.props(segmentActor, metaActor, 0, 1))
 
-    Props(new RoutingActor(router, metaActor, audienceActor, readonlyMetaActor))
+    Props(new RoutingActor(documentActor, metaActor, segmentActor))
   }
 }

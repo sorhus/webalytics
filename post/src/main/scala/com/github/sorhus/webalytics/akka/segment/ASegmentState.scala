@@ -13,9 +13,9 @@ import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.{Set => MSet}
 
-abstract class ASegmentState[T](bitsetWrapper: BitsetWrapper[T]) extends Serializable {
+abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
 
-  val log = LoggerFactory.getLogger(getClass)
+  @transient val log = LoggerFactory.getLogger(getClass)
 
   implicit val bitsets: MapWrapper[T]
 
@@ -25,7 +25,7 @@ abstract class ASegmentState[T](bitsetWrapper: BitsetWrapper[T]) extends Seriali
       bucket -> space.map{case(dimension, values) =>
         dimension -> values.map{value =>
           val bitset: Option[Bitset[T]] = bitsets.getOption(bucket, dimension, value)
-          value -> bitset.map(bs => bitsetWrapper.andCard(audience.impl(), bs.impl())).getOrElse(0L)
+          value -> bitset.map(bs => bitsetOps.andCardinality(audience.impl(), bs.impl())).getOrElse(0L)
         }.toList
       }.toList
     }
@@ -33,7 +33,7 @@ abstract class ASegmentState[T](bitsetWrapper: BitsetWrapper[T]) extends Seriali
 
 
   private def getAudience(filter: Filter): Bitset[T] = {
-    val toAnd: List[T] = filter.f.map{ and: List[Map[Bucket, Element]] =>
+    val toAnd: List[Bitset[T]] = filter.f.map{ and: List[Map[Bucket, Element]] =>
       val toOr: List[Bitset[T]] = and.flatMap{ or: Map[Bucket, Element] =>
         or.flatMap{case(bucket, element) =>
           element.e.flatMap{
@@ -44,21 +44,31 @@ abstract class ASegmentState[T](bitsetWrapper: BitsetWrapper[T]) extends Seriali
           }
         }
       }
-      bitsetWrapper.or(toOr.map(_.impl()))
+      bitsetOps.or(toOr.map(_.impl()))
     }
-    bitsetWrapper.cons(bitsetWrapper.and(toAnd))
+    bitsetOps.and(toAnd.map(_.impl()))
   }
 
 }
 
-class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitmap) {
+class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps) {
 
   val bitsets = MutableMapWrapper
+
+  def getCopy(bucket: Bucket): Map[Dimension, Map[Value, Bitset[RoaringBitmap]]] =
+    bitsets.get(bucket).map{case(d,values) =>
+      d -> values.map{case(v,b) =>
+        v -> b.getCopy
+      }.toMap
+    }.toMap
+
+
 
   def post(event: PostEvent): Unit = {
     event.element.e.foreach{case (dimension, values) =>
       values.foreach{ value =>
-        bitsets.get(event.bucket, dimension, value).set(event.documentId.d, value = true)
+        bitsets.get(event.bucket, dimension, value)
+          .set(event.documentId.d, value = true)
       }
     }
   }
@@ -69,7 +79,7 @@ class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitmap) {
 
 }
 
-class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableRoaringBitmap](ImmutableBitMap) {
+class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableRoaringBitmap](ImmutableBitsetOps) {
 
   implicit val timeout = Timeout(1, TimeUnit.MINUTES)
 

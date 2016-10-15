@@ -29,11 +29,12 @@ class ReadOnlyDomainActor(audienceActor: ActorRef) extends TDomainActor {
 
     case i: LoadImmutable =>
       val f: Iterable[Future[Any]] = state.data.map{case(bucket, space) =>
+        log.info("Passing on space {}", space)
         audienceActor ? i.copy(space = Some(space))
       }
       Try(Await.result(Future.sequence(f), Duration.Inf)) match {
         case Success(list) if list.forall(_ == Ack) =>
-          log.info("successful init")
+          log.info("successful init {}",list)
           sender() ! Ack
         case Failure(e) =>
           log.warn("failed to Initialize", e)
