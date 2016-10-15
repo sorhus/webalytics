@@ -2,14 +2,14 @@ package com.github.sorhus.webalytics.akka.segment
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
-import com.github.sorhus.webalytics.model._
+import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
 class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
-  var state = new MutableState()
+  var state = new MutableSegmentState
 
   override def persistenceId: String = "bitset-audience-actor"
 
@@ -19,7 +19,7 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
       log.debug("received recover postevent")
       state.post(e)
 
-    case SnapshotOffer(_, snapshot: MutableState) =>
+    case SnapshotOffer(_, snapshot: MutableSegmentState) =>
       log.info("received recover snapshot {}", snapshot)
       state = snapshot
 
@@ -58,21 +58,31 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
       sender() ! Ack
 
     case SaveSnapshot =>
+      // This should only be called after the "child" actors have been snapshot
       log.info("saving snapshot")
       saveSnapshot(state)
 
     case cmd @ MakeImmutable(bucket, _) =>
-      immutableActor forward cmd.copy(bitsets = state.bitsets(bucket))
+//      immutableActor forward cmd.copy(bitsets = state.bitsets(bucket))
+      // TODO don't send the entire thing
+      immutableActor forward cmd.copy(state = Some(state.bitsets))
 
     case Shutdown => sender() ! context.stop(self)
 
-    case Debug => state.debug()
+//    case Debug => state.debug()
 
     case SaveSnapshotSuccess(metadata) =>
-      log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+      log.info(s"snapshot saved. seqNum:{}, timestamp: {}", metadata.sequenceNr, metadata.timestamp)
+      deleteMessages(metadata.sequenceNr)
 
     case SaveSnapshotFailure(_, reason) =>
       log.info("failed to save snapshot: {}", reason)
+
+    case DeleteMessagesSuccess(toSequenceNr) =>
+      log.info(s"message deleted. sequNum {}", toSequenceNr)
+
+    case DeleteMessagesFailure(reason, toSequenceNr) =>
+      log.info(s"failed to delete message to sequenceNr: {} {}", toSequenceNr, reason)
 
     case x =>
       log.info(s"audience recieved {}", x)

@@ -1,14 +1,14 @@
 package com.github.sorhus.webalytics.akka.domain
 
 import akka.persistence.{PersistentActor, SnapshotOffer}
-import com.github.sorhus.webalytics.model.PostMetaEvent
+import com.github.sorhus.webalytics.akka.model.PostMetaEvent
 import org.slf4j.LoggerFactory
 
 trait TDomainActor extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
-  var state = State()
+  var state = DomainState()
 
   def handle(e: PostMetaEvent) = {
     state = state.update(e)
@@ -22,7 +22,7 @@ trait TDomainActor extends PersistentActor {
       log.info("received recover postmetaevent")
       handle(e)
 
-    case SnapshotOffer(_, snapshot: State) =>
+    case SnapshotOffer(_, snapshot: DomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 

@@ -1,10 +1,11 @@
-package com.github.sorhus.webalytics.akka.document
+package com.github.sorhus.webalytics.akka
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Router}
+import com.github.sorhus.webalytics.akka.document.DocumentIdActor
 import com.github.sorhus.webalytics.akka.domain.{DomainActor, ReadOnlyDomainActor}
-import com.github.sorhus.webalytics.akka.segment.{ImmutableBitsetActor, MakeImmutable, SegmentActor}
-import com.github.sorhus.webalytics.model._
+import com.github.sorhus.webalytics.akka.segment.{ImmutableSegmentActor, SegmentActor}
+import com.github.sorhus.webalytics.akka.model._
 
 class RoutingActor(router: Router, metaActor: ActorRef, audienceActor: ActorRef, readonlyMetaActor: ActorRef) extends Actor {
 
@@ -24,6 +25,10 @@ class RoutingActor(router: Router, metaActor: ActorRef, audienceActor: ActorRef,
       router.routees.foreach(r => r.send(SaveSnapshot, sender()))
       metaActor ! SaveSnapshot
       audienceActor ! SaveSnapshot
+
+      // TODO do this after ^^ success
+      router.routees.foreach(r => r.send(SaveSnapshot, sender()))
+
       // TODO make sure success
       sender() ! Ack
 
@@ -41,7 +46,7 @@ class RoutingActor(router: Router, metaActor: ActorRef, audienceActor: ActorRef,
 
 object RoutingActor {
   def props()(implicit system: ActorSystem) = {
-    val immutableBitsetActor = system.actorOf(ImmutableBitsetActor.props("roaring")) // TODO don't hardcode
+    val immutableBitsetActor = system.actorOf(ImmutableSegmentActor.props("roaring")) // TODO don't hardcode
     val readonlyMetaActor = system.actorOf(ReadOnlyDomainActor.props(immutableBitsetActor), "readonly-meta")
 
     val audienceActor: ActorRef = system.actorOf(SegmentActor.props(immutableBitsetActor), "audience")

@@ -1,6 +1,7 @@
-package com.github.sorhus.webalytics.model
+package com.github.sorhus.webalytics.cruft.model
 
-import com.github.sorhus.webalytics.impl.redis.RedisMetaDao
+import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.cruft.redis.RedisMetaDao
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}

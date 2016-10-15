@@ -1,10 +1,10 @@
-package com.github.sorhus.webalytics.batch
+package com.github.sorhus.webalytics.cruft.batch
 
 import java.io.{BufferedReader, BufferedWriter, FileReader, OutputStreamWriter}
 
 import akka.actor.ActorSystem
-import com.github.sorhus.webalytics.impl.redis.{RedisDao, RedisMetaDao}
-import com.github.sorhus.webalytics.model.{Bucket, Dimension, Element}
+import com.github.sorhus.webalytics.akka.model.{Bucket, Dimension, Element}
+import com.github.sorhus.webalytics.cruft.redis.{RedisDao, RedisMetaDao}
 import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

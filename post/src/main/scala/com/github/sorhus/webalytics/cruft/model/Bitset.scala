@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.model
+package com.github.sorhus.webalytics.cruft.model
 
 trait Bitset[T] extends Serializable {
   def set(bit: Long, value: Boolean): Unit

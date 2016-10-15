@@ -39,10 +39,10 @@ curl -XPOST localhost:9000/count -d '
 }'
 
 
-java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.GenerateData 100 20 5 2> stats > data
-java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.ConvertToRaw data user | redis-cli --pipe
-time java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.GenerateRaw user 10000 10 10 2> stats | redis-cli --pipe
-java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.batch.BitsetLoader tmp user roaring
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.cruft.batch.GenerateData 100 20 5 2> stats > data
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.cruft.batch.ConvertToRaw data user | redis-cli --pipe
+time java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.cruft.batch.GenerateRaw user 10000 10 10 2> stats | redis-cli --pipe
+java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.cruft.batch.BitsetLoader tmp user roaring
 java -cp post/target/post-0.1.0.jar com.github.sorhus.webalytics.akka.Server
 java -jar post/target/post-0.1.0.jar roaring
 

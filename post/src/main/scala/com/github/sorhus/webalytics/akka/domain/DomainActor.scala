@@ -2,7 +2,7 @@ package com.github.sorhus.webalytics.akka.domain
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
-import com.github.sorhus.webalytics.model._
+import com.github.sorhus.webalytics.akka.model._
 
 class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) extends TDomainActor {
 
@@ -15,12 +15,12 @@ class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) 
       handle(e)
 
     case query: Query =>
-      log.info("received query {}", query)
+      log.debug("received query {}", query)
       val space = state.get(query.dimensions)
-      log.info("space is {}", space)
+      log.debug("space is {}", space)
       audienceActor forward QueryEvent(query, space)
 
-    case Getall =>
+    case GetAll =>
       sender() ! state.getAll
 
     case SaveSnapshot =>
@@ -35,9 +35,16 @@ class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) 
 
     case SaveSnapshotSuccess(metadata) =>
       log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+      deleteMessages(metadata.sequenceNr)
 
     case SaveSnapshotFailure(_, reason) =>
       log.info("failed to save snapshot", reason)
+
+    case DeleteMessagesSuccess(toSequenceNr) =>
+      log.info(s"message deleted. sequNum {}", toSequenceNr)
+
+    case DeleteMessagesFailure(reason, toSequenceNr) =>
+      log.info(s"failed to delete message to sequenceNr: {} {}", toSequenceNr, reason)
 
     case x =>
       log.info(s"received $x")
@@ -50,7 +57,7 @@ class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) 
       log.debug("received recover postmetaevent")
       handle(e)
 
-    case SnapshotOffer(_, snapshot: State) =>
+    case SnapshotOffer(_, snapshot: DomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 
@@ -58,7 +65,6 @@ class DomainActor(audienceActor: ActorRef, readOnlyMetaActor: Option[ActorRef]) 
       log.info("received recover {}", x)
 
   }
-
 
 }
 

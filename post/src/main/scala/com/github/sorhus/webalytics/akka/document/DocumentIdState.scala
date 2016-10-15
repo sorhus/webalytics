@@ -1,12 +1,12 @@
 package com.github.sorhus.webalytics.akka.document
 
-import com.github.sorhus.webalytics.model.{DocumentId, ElementId}
+import com.github.sorhus.webalytics.akka.model.{DocumentId, ElementId}
 
-case class DocumentIds(n: Int, counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
+case class DocumentIdState(n: Int, counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
 
   def get(elementId: ElementId): DocumentId = ids(elementId)
 
-  def update(elementId: ElementId): DocumentIds = {
+  def update(elementId: ElementId): DocumentIdState = {
     if (ids.contains(elementId)) {
       this
     } else {
@@ -15,7 +15,7 @@ case class DocumentIds(n: Int, counter: Long = 0, ids: Map[ElementId, DocumentId
     }
   }
 
-  def update(elementId: ElementId, documentId: DocumentId): DocumentIds = {
+  def update(elementId: ElementId, documentId: DocumentId): DocumentIdState = {
     copy(ids = ids + (elementId -> documentId))
   }
 }

@@ -2,27 +2,25 @@ package com.github.sorhus.webalytics.akka.document
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
-import com.github.sorhus.webalytics.model._
+import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
 class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n: Int) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
-  log.info(s"$getClass alive")
 
-  var state = DocumentIds(n, counter = id)
+  var state = DocumentIdState(n, counter = id)
 
   override def persistenceId: String = s"document-id-actor-$id"
 
   override def receiveRecover: Receive = {
 
     case e: PostEvent =>
-//      log.info("received recover postevent {}", e)
       log.debug("received recover postevent")
       state = state.update(e.elementId, e.documentId)
       post(e)
 
-    case SnapshotOffer(_, snapshot: DocumentIds) =>
+    case SnapshotOffer(_, snapshot: DocumentIdState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 
@@ -63,9 +61,16 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
 
     case SaveSnapshotSuccess(metadata) =>
       log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+      deleteMessages(metadata.sequenceNr)
 
     case SaveSnapshotFailure(_, reason) =>
       log.info("failed to save snapshot: {}", reason)
+
+    case DeleteMessagesSuccess(toSequenceNr) =>
+      log.info(s"message deleted. sequNum {}", toSequenceNr)
+
+    case DeleteMessagesFailure(reason, toSequenceNr) =>
+      log.info(s"failed to delete message to sequenceNr: {} {}", toSequenceNr, reason)
 
     case x =>
       log.info(s"doc recieved {}", x)

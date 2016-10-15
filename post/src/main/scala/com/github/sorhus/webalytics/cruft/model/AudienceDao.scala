@@ -1,4 +1,6 @@
-package com.github.sorhus.webalytics.model
+package com.github.sorhus.webalytics.cruft.model
+
+import com.github.sorhus.webalytics.akka.model._
 
 trait AudienceDao {
 

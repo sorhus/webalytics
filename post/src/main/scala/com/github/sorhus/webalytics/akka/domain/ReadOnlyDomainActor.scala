@@ -3,7 +3,7 @@ package com.github.sorhus.webalytics.akka.domain
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, Props}
-import com.github.sorhus.webalytics.model._
+import com.github.sorhus.webalytics.akka.model._
 import akka.pattern.ask
 import akka.persistence.SnapshotOffer
 import akka.util.Timeout
@@ -49,7 +49,7 @@ class ReadOnlyDomainActor(audienceActor: ActorRef) extends TDomainActor {
 
   override def receiveRecover: Receive = {
 
-    case SnapshotOffer(_, snapshot: State) =>
+    case SnapshotOffer(_, snapshot: DomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 

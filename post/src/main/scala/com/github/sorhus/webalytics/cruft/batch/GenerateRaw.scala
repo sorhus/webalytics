@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.batch
+package com.github.sorhus.webalytics.cruft.batch
 
 import java.io._
 

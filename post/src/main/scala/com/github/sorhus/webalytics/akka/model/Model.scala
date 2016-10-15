@@ -1,21 +1,18 @@
-package com.github.sorhus.webalytics.model
+package com.github.sorhus.webalytics.akka.model
 
 import java.util.UUID
 
-//sealed trait Model with AnyVal
+sealed trait Model extends Serializable
 
-case class Bucket(b: String) //extends AnyVal
-case class Dimension(d: String) //extends AnyVal
-case class Value(v: String) //extends AnyVal
-case class ElementId(e: String = UUID.randomUUID().toString) //extends AnyVal
-case class DocumentId(d: Long) //extends AnyVal
+case class Bucket(b: String) extends AnyVal
+case class Dimension(d: String) extends AnyVal
+case class DocumentId(d: Long) extends AnyVal
+case class ElementId(e: String = UUID.randomUUID().toString) extends AnyVal
+case class Filter(f: List[List[Map[Bucket, Element]]]) extends Model
+case class Value(v: String) extends AnyVal
+case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension], immutable: Boolean = false) extends Model
 
-case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension], immutable: Boolean = false)
-case class Filter(f: List[List[Map[Bucket, Element]]])
-case class DataPoint(elementId: ElementId, element: Element)
-case class Space(s: Map[Dimension, List[Value]])
-
-case class Element(e: Map[Dimension, Set[Value]]) {
+case class Element(e: Map[Dimension, Set[Value]]) extends Model {
   def +(that: Element) = {
     val keys = e.keys ++ that.e.keys
     val merged = keys.map{key =>
@@ -26,8 +23,8 @@ case class Element(e: Map[Dimension, Set[Value]]) {
 }
 
 object Element {
-
   def apply() = new Element(Map.empty)
+  val root: Element = fromMap(Map("" -> Set("")))
   def fromMap(data: Map[String, Set[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
   }
@@ -87,8 +84,3 @@ object JsonResult {
   }
 }
 
-case class PostEvent(bucket: Bucket, elementId: ElementId, documentId: DocumentId, element: Element)
-case class PostMetaEvent(bucket: Bucket, element: Element)
-case class PostCommand(bucket: Bucket, elementId: ElementId, element: Element)
-case class QueryEvent(query: Query, space: Element)
-case class CloseBucket(b: Bucket)

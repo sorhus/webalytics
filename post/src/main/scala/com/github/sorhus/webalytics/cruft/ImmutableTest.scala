@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics
+package com.github.sorhus.webalytics.cruft
 
 import java.io.{DataOutputStream, File, FileOutputStream, RandomAccessFile}
 import java.nio.channels.FileChannel.MapMode

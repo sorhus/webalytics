@@ -1,10 +1,10 @@
 package com.github.sorhus.webalytics.akka.domain
 
-import com.github.sorhus.webalytics.model.{Bucket, Dimension, Element, PostMetaEvent}
+import com.github.sorhus.webalytics.akka.model.{Bucket, Dimension, Element, PostMetaEvent}
 
-case class State(data: Map[Bucket, Element] = Map[Bucket, Element]()) extends Serializable {
+case class DomainState(data: Map[Bucket, Element] = Map[Bucket, Element]()) extends Serializable {
 
-  def update(event: PostMetaEvent): State = {
+  def update(event: PostMetaEvent): DomainState = {
     val merged = data.getOrElse(event.bucket, Element()) + event.element
     copy(data = data + (event.bucket -> merged))
   }

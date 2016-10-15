@@ -1,6 +1,6 @@
-package com.github.sorhus.webalytics.model
+package com.github.sorhus.webalytics.cruft.model
 
-import com.github.sorhus.webalytics.impl.ImmutableRoaringBitmapWrapper
+import com.github.sorhus.webalytics.akka.model._
 import org.roaringbitmap.buffer.{ImmutableRoaringBitmap, MutableRoaringBitmap}
 
 import scala.collection.immutable.Seq
@@ -160,7 +160,8 @@ class ImmutableBitsetDao(bitsets: Map[Bucket, Map[Dimension, Map[Value, Bitset[I
       }
       ImmutableRoaringBitmap.or(ors: _*)
     }
-    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.and(ored.toIterator.asJava, 0L, 1L << 32))
+    null
+//    new ImmutableRoaringBitmapWrapper(ImmutableRoaringBitmap.and(ored.toIterator.asJava, 0L, 1L << 32))
   }
 
 }
