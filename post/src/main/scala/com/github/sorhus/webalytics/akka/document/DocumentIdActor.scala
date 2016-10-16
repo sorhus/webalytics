@@ -5,29 +5,13 @@ import akka.persistence._
 import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
-class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n: Int) extends PersistentActor {
+class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
-  var state = DocumentIdState(n, counter = id)
+  var state = DocumentIdState()
 
-  override def persistenceId: String = s"document-id-actor-$id"
-
-  override def receiveRecover: Receive = {
-
-    case e: PostEvent =>
-      log.debug("received recover postevent")
-      state = state.update(e.elementId, e.documentId)
-      post(e)
-
-    case SnapshotOffer(_, snapshot: DocumentIdState) =>
-      log.info("restoring state from snapshot")
-      state = snapshot
-
-    case x =>
-      log.info("received recover {}", x)
-
-  }
+  override def persistenceId: String = s"document-id-actor"
 
   def post(event: PostEvent): Unit = {
     audienceActor ! event
@@ -73,16 +57,27 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef, id: Int, n:
 
   }
 
-  override def recovery = {
-    log.info("recovery")
-    Recovery(fromSnapshot = SnapshotSelectionCriteria.Latest)
+  override def receiveRecover: Receive = {
+
+    case e: PostEvent =>
+      log.debug("received recover postevent")
+      state = state.update(e.elementId, e.documentId)
+      post(e)
+
+    case SnapshotOffer(_, snapshot: DocumentIdState) =>
+      log.info("restoring state from snapshot")
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+
   }
 
 }
 
 object DocumentIdActor {
-  def props(audienceActor: ActorRef, queryActor: ActorRef, id: Int = 0, n: Int = 1): Props =
-    Props(new DocumentIdActor(audienceActor, queryActor, id, n))
+  def props(audienceActor: ActorRef, queryActor: ActorRef): Props =
+    Props(new DocumentIdActor(audienceActor, queryActor))
 }
 
 

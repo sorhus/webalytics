@@ -5,27 +5,13 @@ import akka.persistence._
 import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
-class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
+class SegmentActor(immutableActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
   var state = new MutableSegmentState
 
   override def persistenceId: String = "segment-actor"
-
-  override def receiveRecover: Receive = {
-
-    case e: PostEvent =>
-      log.debug("received recover postevent")
-      state.post(e)
-
-    case SnapshotOffer(_, snapshot: MutableSegmentState) =>
-      log.info("received recover snapshot {}", snapshot)
-      state = snapshot
-
-    case x =>
-      log.info("received recover {}", x)
-  }
 
   def handle(e: PostEvent): Unit = {
 //    sender() ! Ack
@@ -55,6 +41,8 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
     case CloseBucket(bucket) =>
       log.info("closing bucket")
       state remove bucket
+      log.info("saving snapshot")
+      saveSnapshot(state)
       sender() ! Ack
 
     case SaveSnapshot =>
@@ -62,7 +50,7 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
       saveSnapshot(state)
 
     case cmd @ MakeImmutable(bucket, _) =>
-      // TODO don't send the entire thing
+      // TODO remember this and route queries
       immutableActor forward cmd.copy(state = state.getCopy(bucket))
 
     case Shutdown =>
@@ -88,11 +76,24 @@ class SegmentActor(immutableActor: ActorRef = null) extends PersistentActor {
 
   }
 
+  override def receiveRecover: Receive = {
+
+    case e: PostEvent =>
+      log.debug("received recover postevent")
+      state.post(e)
+
+    case SnapshotOffer(_, snapshot: MutableSegmentState) =>
+      log.info("received recover snapshot {}", snapshot)
+      state = snapshot
+
+    case x =>
+      log.info("received recover {}", x)
+  }
+
 }
 
 object SegmentActor {
   def props(immutableActor: ActorRef): Props = Props(new SegmentActor(immutableActor))
-  def props(): Props = Props(new SegmentActor())
 }
 
 

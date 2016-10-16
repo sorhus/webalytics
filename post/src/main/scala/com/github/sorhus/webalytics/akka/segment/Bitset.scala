@@ -58,9 +58,10 @@ trait MapWrapper[T] extends Serializable {
 object ImmutableMapWrapper extends MapWrapper[ImmutableRoaringBitmap] {
   var bitsets = Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]]()
 
-  def set(bs: Map[Bucket, Map[Dimension, Map[Value, ImmutableRoaringBitmapWrapper]]]) = {
-    bitsets = bs
+  def put(bucket: Bucket, bs: Map[Dimension, Map[Value, ImmutableRoaringBitmapWrapper]]) = {
+    bitsets = bitsets + (bucket -> bs)
   }
+
   override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableRoaringBitmap]] = Try {
     bitsets(bucket)(dimension)(value)
   }.toOption

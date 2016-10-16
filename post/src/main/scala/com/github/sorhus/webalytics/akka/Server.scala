@@ -41,7 +41,7 @@ object Server extends App with Directives with JsonSupport {
   val deadLetter = system.actorOf(DeadLetterLoggingActor.props(), "dead-letter")
   system.eventStream.subscribe(deadLetter, classOf[DeadLetter])
 
-  val routingActor: ActorRef = system.actorOf(RoutingActor.props(), "routing")
+  val routingActor: ActorRef = system.actorOf(ActorContainer.props(), "routing")
 
 
     val route =
@@ -179,8 +179,17 @@ object Server extends App with Directives with JsonSupport {
       path("makeimmutable" / Segment) { case (bucket) =>
         post {
           complete {
-            (routingActor ? MakeImmutable(bucket = Bucket(bucket)))
+            val b = Bucket(bucket)
+            (routingActor ? MakeImmutable(bucket = b))
               .mapTo[AckOrNack]
+              .flatMap{
+                case Ack => routingActor ? LoadImmutable(bucket = b)
+                case Nack => Future.successful(Nack)
+              }.mapTo[AckOrNack]
+              .flatMap{
+                case Ack => routingActor ? CloseBucket(b)
+                case Nack => Future.successful(Nack)
+              }.mapTo[AckOrNack]
               .map(_.toString)
           }
         }

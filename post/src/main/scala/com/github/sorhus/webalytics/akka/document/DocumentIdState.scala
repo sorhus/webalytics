@@ -2,7 +2,7 @@ package com.github.sorhus.webalytics.akka.document
 
 import com.github.sorhus.webalytics.akka.model.{DocumentId, ElementId}
 
-case class DocumentIdState(n: Int, counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
+case class DocumentIdState(counter: Long = 0, ids: Map[ElementId, DocumentId] = Map.empty) extends Serializable {
 
   def get(elementId: ElementId): DocumentId = ids(elementId)
 
@@ -10,7 +10,7 @@ case class DocumentIdState(n: Int, counter: Long = 0, ids: Map[ElementId, Docume
     if (ids.contains(elementId)) {
       this
     } else {
-      val c = counter + n
+      val c = counter + 1
       copy(counter = c, ids = ids + (elementId -> DocumentId(c)))
     }
   }
