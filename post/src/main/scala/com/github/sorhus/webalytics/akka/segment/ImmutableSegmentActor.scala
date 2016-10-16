@@ -16,9 +16,10 @@ class ImmutableSegmentActor(path: String) extends PersistentActor {
 
   override def receiveCommand: Receive = {
 
-    case QueryEvent(query: Query, space: Element) =>
+    case QueryEvent(query: Query, space: Element, queryState: Option[QuerySegmentState]) =>
       log.info("received query and space {}", (query, space))
-      val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
+      val s = queryState.get.update(state)
+      val response: Map[String, Map[String, Map[String, Long]]] = s.getCount(query, space.e)
         .map{case(bucket, dimensions) =>
           bucket.b -> dimensions.map{case(dimension, values) =>
             dimension.d -> values.map{case(value, count) =>

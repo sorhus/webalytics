@@ -1,7 +1,7 @@
 package com.github.sorhus.webalytics.akka.segment
 
 import com.github.sorhus.webalytics.akka.model.{Bucket, Dimension, Value}
-import org.roaringbitmap.{FastAggregation, RoaringBitmap}
+import org.roaringbitmap.{FastAggregation, ImmutableBitmapDataProvider, RoaringBitmap}
 import org.roaringbitmap.buffer.{BufferFastAggregation, ImmutableRoaringBitmap}
 
 import scala.collection.mutable.{Map => MMap}
@@ -24,8 +24,12 @@ class RoaringBitmapWrapper(val impl: RoaringBitmap = new RoaringBitmap()) extend
   override def getCopy: Bitset[RoaringBitmap] = new RoaringBitmapWrapper(impl.clone())
 }
 
-class ImmutableRoaringBitmapWrapper(val impl: ImmutableRoaringBitmap) extends Bitset[ImmutableRoaringBitmap] {
+class ImmutableRoaringBitmapWrapper(val impl: ImmutableBitmapDataProvider) extends Bitset[ImmutableBitmapDataProvider] {
   override def cardinality(): Long = impl.getLongCardinality
+//  def toImmutable: Bitset[ImmutableRoaringBitmap] = {
+//    impl.
+//  }
+
 }
 
 trait BitsetOps[T] extends Serializable {
@@ -35,38 +39,41 @@ trait BitsetOps[T] extends Serializable {
 }
 
 object MutableBitsetOps extends BitsetOps[RoaringBitmap] {
-  def cons(): MutableBitset[RoaringBitmap] = new RoaringBitmapWrapper()
-  private def cons(impl: RoaringBitmap): Bitset[RoaringBitmap] = new RoaringBitmapWrapper(impl)
-  override def or(toOr: Iterable[RoaringBitmap]): Bitset[RoaringBitmap] = cons(FastAggregation.or(toOr.toSeq: _*))
-  override def and(toAnd: Iterable[RoaringBitmap]): Bitset[RoaringBitmap] = cons(FastAggregation.and(toAnd.toSeq: _*))
+  def cons(): RoaringBitmapWrapper = new RoaringBitmapWrapper()
+  private def cons(impl: RoaringBitmap): RoaringBitmapWrapper = new RoaringBitmapWrapper(impl)
+  override def or(toOr: Iterable[RoaringBitmap]): RoaringBitmapWrapper = cons(FastAggregation.or(toOr.toSeq: _*))
+  override def and(toAnd: Iterable[RoaringBitmap]): RoaringBitmapWrapper = cons(FastAggregation.and(toAnd.toSeq: _*))
   override def andCardinality(x: RoaringBitmap, y: RoaringBitmap): Long = RoaringBitmap.andCardinality(x,y)
 }
 
-object ImmutableBitsetOps extends BitsetOps[ImmutableRoaringBitmap] {
-  private def cons(impl: ImmutableRoaringBitmap): Bitset[ImmutableRoaringBitmap] = new ImmutableRoaringBitmapWrapper(impl)
-  override def or(toOr: Iterable[ImmutableRoaringBitmap]): Bitset[ImmutableRoaringBitmap] = cons(BufferFastAggregation.or(toOr.toSeq: _*))
-  override def and(toAnd: Iterable[ImmutableRoaringBitmap]): Bitset[ImmutableRoaringBitmap] = cons(BufferFastAggregation.and(toAnd.toSeq: _*))
-  override def andCardinality(x: ImmutableRoaringBitmap, y: ImmutableRoaringBitmap): Long = ImmutableRoaringBitmap.and(x,y).getLongCardinality
+object ImmutableBitsetOps extends BitsetOps[ImmutableBitmapDataProvider] {
+  private def cons(impl: ImmutableBitmapDataProvider) = new ImmutableRoaringBitmapWrapper(impl)
+  override def or(toOr: Iterable[ImmutableBitmapDataProvider]) = cons(BufferFastAggregation.or(toOr.map(_.asInstanceOf[ImmutableRoaringBitmap]).toSeq: _*))
+  override def and(toAnd: Iterable[ImmutableBitmapDataProvider]) = cons(BufferFastAggregation.and(toAnd.map(_.asInstanceOf[ImmutableRoaringBitmap]).toSeq: _*))
+  override def andCardinality(x: ImmutableBitmapDataProvider, y: ImmutableBitmapDataProvider): Long = ImmutableRoaringBitmap.and(x.asInstanceOf[ImmutableRoaringBitmap],y.asInstanceOf[ImmutableRoaringBitmap]).getLongCardinality
 }
 
 
 trait MapWrapper[T] extends Serializable {
 
+//  def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[T]]
   def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[T]]
 }
 
-object ImmutableMapWrapper extends MapWrapper[ImmutableRoaringBitmap] {
-  var bitsets = Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableRoaringBitmap]]]]()
+// TODO make class
+object ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
+  var bitsets = Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableBitmapDataProvider]]]]()
 
   def put(bucket: Bucket, bs: Map[Dimension, Map[Value, ImmutableRoaringBitmapWrapper]]) = {
     bitsets = bitsets + (bucket -> bs)
   }
 
-  override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableRoaringBitmap]] = Try {
+  override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableBitmapDataProvider]] = Try {
     bitsets(bucket)(dimension)(value)
   }.toOption
 }
 
+// TODO make class
 object MutableMapWrapper extends MapWrapper[RoaringBitmap] {
   var bitsets = MMap[Bucket, MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]]]()
 
@@ -98,3 +105,19 @@ object MutableMapWrapper extends MapWrapper[RoaringBitmap] {
   def get(bucket: Bucket): MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]] = bitsets(bucket)
 }
 
+class QueryMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
+  override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableBitmapDataProvider]] = {
+    val y = MutableMapWrapper.getOption(bucket, dimension, value).map { m =>
+      val i = m.impl()
+      val n = i.toMutableRoaringBitmap.toImmutableRoaringBitmap
+      new ImmutableRoaringBitmapWrapper(n)
+    }
+
+//      .orElse(
+    val x = ImmutableMapWrapper.getOption(bucket, dimension, value).map(_.impl()).map(m => new ImmutableRoaringBitmapWrapper(m))
+
+    val z: Option[ImmutableRoaringBitmapWrapper] = y.orElse(x)
+
+    z
+  }
+}

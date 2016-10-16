@@ -5,17 +5,17 @@ import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel.MapMode
 
 import com.github.sorhus.webalytics.akka.model._
-import org.roaringbitmap.RoaringBitmap
-import org.roaringbitmap.buffer.ImmutableRoaringBitmap
+import org.roaringbitmap.{ImmutableBitmapDataProvider, RoaringBitmap}
+import org.roaringbitmap.buffer.{ImmutableRoaringBitmap, MutableRoaringBitmap}
 import org.slf4j.LoggerFactory
 
-import scala.collection.mutable.{Set => MSet}
+import scala.collection.mutable.{Map => MMap, Set => MSet}
 
 abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
 
   @transient val log = LoggerFactory.getLogger(getClass)
 
-  implicit val bitsets: MapWrapper[T]
+  def bitsets: MapWrapper[T]
 
   def getCount(query: Query, space: Map[Dimension, Set[Value]]): Iterable[(Bucket, Iterable[(Dimension, Iterable[(Value, Long)])])] = {
     val audience: Bitset[T] = getAudience(query.filter)
@@ -24,8 +24,8 @@ abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
         dimension -> values.map{value =>
           val bitset: Option[Bitset[T]] = bitsets.getOption(bucket, dimension, value)
           value -> bitset.map(bs => bitsetOps.andCardinality(audience.impl(), bs.impl())).getOrElse(0L)
-        }//.toList
-      }//.toList
+        }
+      }
     }
   }
 
@@ -60,7 +60,9 @@ class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps)
       }.toMap
     }.toMap
 
-
+  def get(buckets: List[Bucket]): MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]] = {
+    buckets.flatMap(bitsets.bitsets.get).reduce(_ ++ _)
+  }
 
   def post(event: PostEvent): Unit = {
     event.element.e.foreach{case (dimension, values) =>
@@ -77,7 +79,7 @@ class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps)
 
 }
 
-class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableRoaringBitmap](ImmutableBitsetOps) {
+class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
 
   val bitsets = ImmutableMapWrapper
 
@@ -131,4 +133,11 @@ class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableRoaring
 
     bitsets.put(bucket, result)
   }
+}
+
+case class QuerySegmentState(mutableState: MutableSegmentState, immutableState: Option[ImmutableSegmentState] = None)
+  extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
+  def update(state: ImmutableSegmentState) = copy(immutableState = Some(state))
+
+  def bitsets = new QueryMapWrapper//(mutableState.bitsets, immutableState.get.bitsets)
 }

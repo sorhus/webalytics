@@ -71,26 +71,26 @@ object Server extends App with Directives with JsonSupport {
         }
       }
     } ~
-    path("count"/ "immutable" / Segment) { bucket =>
-      post {
-        complete {
-          val b = Bucket(bucket)
-          (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil, immutable = true))
-            .mapTo[Map[String, Map[String, Map[String, Long]]]]
-        }
-      }
-    } ~
-  // TODO fixme
-      path("count" / "immutable") {
-        post {
-          entity(as[JsonQuery]) { jsonQuery =>
-            complete {
-              (routingActor ? jsonQuery.toQuery.copy(immutable = true))
-                .mapTo[Map[String, Map[String, Map[String, Long]]]]
-            }
-          }
-        }
-    } ~
+//    path("count"/ "immutable" / Segment) { bucket =>
+//      post {
+//        complete {
+//          val b = Bucket(bucket)
+//          (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil, immutable = true))
+//            .mapTo[Map[String, Map[String, Map[String, Long]]]]
+//        }
+//      }
+//    } ~
+//   TODO fixme
+//      path("count" / "immutable") {
+//        post {
+//          entity(as[JsonQuery]) { jsonQuery =>
+//            complete {
+//              (routingActor ? jsonQuery.toQuery.copy(immutable = true))
+//                .mapTo[Map[String, Map[String, Map[String, Long]]]]
+//            }
+//          }
+//        }
+//    } ~
       path("post" / Segment / Segment) { case (bucket, elementId) =>
         post {
           entity(as[Map[String,Set[String]]]) { data =>

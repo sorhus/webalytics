@@ -5,7 +5,7 @@ import akka.persistence._
 import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
-class SegmentActor(immutableActor: ActorRef) extends PersistentActor {
+class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
@@ -26,17 +26,19 @@ class SegmentActor(immutableActor: ActorRef) extends PersistentActor {
 //      persistAsync(e)(handle)
       handle(e)
 
-    case QueryEvent(query: Query, space: Element) =>
-      log.debug("received query and space {}", (query, space))
-      val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
-        .map{case(bucket, dimensions) =>
-          bucket.b -> dimensions.map{case(dimension, values) =>
-          dimension.d -> values.map{case(value, count) =>
-            value.v -> count
-          }.toMap
-        }.toMap
-      }.toMap
-      sender() ! response
+    case q: QueryEvent =>
+      immutableSegmentActor forward q.copy(state = Some(QuerySegmentState(state)))
+
+//      log.debug("received query and space {}", (query, space))
+//      val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
+//        .map{case(bucket, dimensions) =>
+//          bucket.b -> dimensions.map{case(dimension, values) =>
+//          dimension.d -> values.map{case(value, count) =>
+//            value.v -> count
+//          }.toMap
+//        }.toMap
+//      }.toMap
+//      sender() ! response
 
     case CloseBucket(bucket) =>
       log.info("closing bucket")
@@ -51,7 +53,7 @@ class SegmentActor(immutableActor: ActorRef) extends PersistentActor {
 
     case cmd @ MakeImmutable(bucket, _) =>
       // TODO remember this and route queries
-      immutableActor forward cmd.copy(state = state.getCopy(bucket))
+      immutableSegmentActor forward cmd.copy(state = state.getCopy(bucket))
 
     case Shutdown =>
       sender() ! context.stop(self)
