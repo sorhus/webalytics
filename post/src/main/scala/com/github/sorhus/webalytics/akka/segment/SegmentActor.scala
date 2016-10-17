@@ -14,7 +14,6 @@ class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
   override def persistenceId: String = "segment-actor"
 
   def handle(e: PostEvent): Unit = {
-//    sender() ! Ack
     state.post(e)
   }
 
@@ -22,23 +21,11 @@ class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
 
     case e: PostEvent =>
       log.debug("received postevent")
-//      persist(e)(handle)
 //      persistAsync(e)(handle)
       handle(e)
 
     case q: QueryEvent =>
       immutableSegmentActor forward q.copy(state = Some(QuerySegmentState(state)))
-
-//      log.debug("received query and space {}", (query, space))
-//      val response: Map[String, Map[String, Map[String, Long]]] = state.getCount(query, space.e)
-//        .map{case(bucket, dimensions) =>
-//          bucket.b -> dimensions.map{case(dimension, values) =>
-//          dimension.d -> values.map{case(value, count) =>
-//            value.v -> count
-//          }.toMap
-//        }.toMap
-//      }.toMap
-//      sender() ! response
 
     case CloseBucket(bucket) =>
       log.info("closing bucket")
@@ -52,11 +39,11 @@ class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
       saveSnapshot(state)
 
     case cmd @ MakeImmutable(bucket, _) =>
-      // TODO remember this and route queries
       immutableSegmentActor forward cmd.copy(state = state.getCopy(bucket))
 
     case Shutdown =>
-      sender() ! context.stop(self)
+      context.stop(self)
+      sender() ! Ack
 
 //    case Debug => state.debug()
 
@@ -85,7 +72,7 @@ class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
       state.post(e)
 
     case SnapshotOffer(_, snapshot: MutableSegmentState) =>
-      log.info("received recover snapshot {}", snapshot)
+      log.info("received recover snapshot")
       state = snapshot
 
     case x =>

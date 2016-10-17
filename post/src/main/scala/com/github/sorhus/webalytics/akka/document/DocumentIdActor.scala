@@ -5,17 +5,17 @@ import akka.persistence._
 import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
 
-class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends PersistentActor {
+class DocumentIdActor(audienceActor: ActorRef, domainActor: ActorRef) extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
   var state = DocumentIdState()
 
-  override def persistenceId: String = s"document-id-actor"
+  override def persistenceId: String = "document-id-actor"
 
   def post(event: PostEvent): Unit = {
     audienceActor ! event
-    queryActor ! PostMetaEvent(event.bucket, event.element)
+    domainActor ! PostMetaEvent(event.bucket, event.element)
   }
 
   def notifyAndPost(event: PostEvent): Unit = {
@@ -30,17 +30,25 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
       state = state.update(e.elementId)
       val documentId = state.get(e.elementId)
       val postEvent = PostEvent(e.bucket, e.elementId, documentId, e.element)
-      persistAsync(postEvent)(notifyAndPost)
+      if(e.persist) {
+        persistAsync(postEvent)(notifyAndPost)
+      } else {
+        notifyAndPost(postEvent)
+      }
 
     case SaveSnapshot =>
       log.info("saving snapshot")
       saveSnapshot(state)
 
     case Shutdown =>
-      sender() ! context.stop(self)
+      context.stop(self)
+      sender() ! Ack
 
     case SaveSnapshotSuccess(metadata) =>
       log.info(s"snapshot saved. seqNum:${metadata.sequenceNr}, timeStamp:${metadata.timestamp}")
+      audienceActor ! SaveSnapshot
+      domainActor ! SaveSnapshot
+      // TODO get confirmation first!?
       deleteMessages(metadata.sequenceNr)
 
     case SaveSnapshotFailure(_, reason) =>
@@ -60,7 +68,7 @@ class DocumentIdActor(audienceActor: ActorRef, queryActor: ActorRef) extends Per
   override def receiveRecover: Receive = {
 
     case e: PostEvent =>
-      log.debug("received recover postevent")
+      log.info("received recover postevent")
       state = state.update(e.elementId, e.documentId)
       post(e)
 

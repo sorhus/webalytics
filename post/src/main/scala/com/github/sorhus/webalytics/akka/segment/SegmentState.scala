@@ -51,7 +51,7 @@ abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
 
 class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps) {
 
-  val bitsets = MutableMapWrapper
+  val bitsets = new MutableMapWrapper
 
   def getCopy(bucket: Bucket): Map[Dimension, Map[Value, Bitset[RoaringBitmap]]] =
     bitsets.get(bucket).map{case(d,values) =>
@@ -81,7 +81,7 @@ class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps)
 
 class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
 
-  val bitsets = ImmutableMapWrapper
+  val bitsets = new ImmutableMapWrapper
 
   // TODO This should be a plugin
   def write(bucket: Bucket, bitsets: Map[Dimension, Map[Value, Bitset[RoaringBitmap]]]) = {
@@ -139,5 +139,5 @@ case class QuerySegmentState(mutableState: MutableSegmentState, immutableState: 
   extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
   def update(state: ImmutableSegmentState) = copy(immutableState = Some(state))
 
-  def bitsets = new QueryMapWrapper//(mutableState.bitsets, immutableState.get.bitsets)
+  def bitsets = new QueryMapWrapper(mutableState.bitsets, immutableState.get.bitsets)
 }

@@ -61,7 +61,7 @@ trait MapWrapper[T] extends Serializable {
 }
 
 // TODO make class
-object ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
+class ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
   var bitsets = Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableBitmapDataProvider]]]]()
 
   def put(bucket: Bucket, bs: Map[Dimension, Map[Value, ImmutableRoaringBitmapWrapper]]) = {
@@ -74,7 +74,8 @@ object ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
 }
 
 // TODO make class
-object MutableMapWrapper extends MapWrapper[RoaringBitmap] {
+class MutableMapWrapper extends MapWrapper[RoaringBitmap] {
+
   var bitsets = MMap[Bucket, MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]]]()
 
   override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[RoaringBitmap]] = Try {
@@ -105,16 +106,16 @@ object MutableMapWrapper extends MapWrapper[RoaringBitmap] {
   def get(bucket: Bucket): MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]] = bitsets(bucket)
 }
 
-class QueryMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
+class QueryMapWrapper(mutable: MutableMapWrapper, immutable: ImmutableMapWrapper) extends MapWrapper[ImmutableBitmapDataProvider] {
   override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableBitmapDataProvider]] = {
-    val y = MutableMapWrapper.getOption(bucket, dimension, value).map { m =>
+    val y = mutable.getOption(bucket, dimension, value).map { m =>
       val i = m.impl()
       val n = i.toMutableRoaringBitmap.toImmutableRoaringBitmap
       new ImmutableRoaringBitmapWrapper(n)
     }
 
 //      .orElse(
-    val x = ImmutableMapWrapper.getOption(bucket, dimension, value).map(_.impl()).map(m => new ImmutableRoaringBitmapWrapper(m))
+    val x = immutable.getOption(bucket, dimension, value).map(_.impl()).map(m => new ImmutableRoaringBitmapWrapper(m))
 
     val z: Option[ImmutableRoaringBitmapWrapper] = y.orElse(x)
 

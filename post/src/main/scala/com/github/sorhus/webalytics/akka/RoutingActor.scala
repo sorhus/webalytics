@@ -1,21 +1,19 @@
 package com.github.sorhus.webalytics.akka
 
-import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.persistence.PersistentActor
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.pattern.ask
 import akka.util.Timeout
 import com.github.sorhus.webalytics.akka.document.DocumentIdActor
 import com.github.sorhus.webalytics.akka.domain.DomainActor
 import com.github.sorhus.webalytics.akka.segment.{ImmutableSegmentActor, SegmentActor}
 import com.github.sorhus.webalytics.akka.model._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
-class ActorContainer(documentActor: ActorRef, domainActor: ActorRef, segmentActor: ActorRef)
-                    (implicit ec: ExecutionContext, timeout: Timeout) extends PersistentActor {
+class RoutingActor(documentActor: ActorRef, domainActor: ActorRef, segmentActor: ActorRef)
+                  (implicit ec: ExecutionContext, timeout: Timeout) extends Actor {
 
-  var state = RoutingState()
-
-  override def receiveCommand: Receive = {
+  override def receive: Receive = {
 
     case p: PostCommand =>
       documentActor forward p
@@ -24,17 +22,11 @@ class ActorContainer(documentActor: ActorRef, domainActor: ActorRef, segmentActo
       domainActor forward q
 
     case SaveSnapshot =>
-      domainActor ! SaveSnapshot
-      segmentActor ! SaveSnapshot
       documentActor ! SaveSnapshot
-      // TODO would be nice to be able to guarantee snapshot success at this point
       sender() ! Ack
 
     case l: LoadImmutable =>
-      persist(l){ _ =>
-        state = state.add(l.bucket)
-        domainActor forward l
-      }
+      domainActor forward l
 
     case m: MakeImmutable =>
       segmentActor forward m
@@ -42,22 +34,21 @@ class ActorContainer(documentActor: ActorRef, domainActor: ActorRef, segmentActo
     case c: CloseBucket =>
       segmentActor forward c
 
+    case Shutdown =>
+      val futures = List(
+        documentActor ? Shutdown,
+        domainActor ? Shutdown,
+        segmentActor ? Shutdown
+      ).map(_.mapTo[AckOrNack])
+
+      val future = Future.sequence(futures).map(_.reduce(_ * _))
+      sender() ! future
+
   }
 
-  override def receiveRecover: Receive = {
-    case l: LoadImmutable =>
-      state = state.add(l.bucket)
-  }
-
-  override def persistenceId: String = "actor-container"
 }
 
-case class RoutingState(private val immutables: Set[Bucket] = Set.empty) {
-  def immutable(b: Bucket) = immutables.contains(b)
-  def add(b: Bucket) = copy(immutables + b)
-}
-
-object ActorContainer {
+object RoutingActor {
   def props()(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout) = {
     val roaringDir = "roaring" // TODO don't hardcode
 
@@ -66,6 +57,6 @@ object ActorContainer {
     val domainActor: ActorRef = system.actorOf(DomainActor.props(segmentActor, immutableSegmentActor), "domain")
     val documentIdActor = system.actorOf(DocumentIdActor.props(segmentActor, domainActor))
 
-    Props(new ActorContainer(documentIdActor, domainActor, segmentActor))
+    Props(new RoutingActor(documentIdActor, domainActor, segmentActor))
   }
 }

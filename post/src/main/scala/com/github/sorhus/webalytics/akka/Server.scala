@@ -19,12 +19,10 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.io.StdIn
+import scala.util.{Failure, Success}
 
 trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val jsonQueryFormat = jsonFormat3(JsonQuery)
-//  implicit val valueFormat = jsonFormat1(Value)
-//  implicit val dimensionFormat = jsonFormat1(Dimension)
-//  implicit val bucketFormat = jsonFormat1(Bucket)
 }
 
 object Server extends App with Directives with JsonSupport {
@@ -32,16 +30,16 @@ object Server extends App with Directives with JsonSupport {
   val log = LoggerFactory.getLogger(getClass)
 
   implicit val system = ActorSystem("server")
+
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
   implicit val timeout = Timeout(1, TimeUnit.MINUTES)
   implicit val jsonFormats: Formats = DefaultFormats
 
-
   val deadLetter = system.actorOf(DeadLetterLoggingActor.props(), "dead-letter")
   system.eventStream.subscribe(deadLetter, classOf[DeadLetter])
 
-  val routingActor: ActorRef = system.actorOf(ActorContainer.props(), "routing")
+  val routingActor: ActorRef = system.actorOf(RoutingActor.props(), "routing")
 
 
     val route =
@@ -71,26 +69,6 @@ object Server extends App with Directives with JsonSupport {
         }
       }
     } ~
-//    path("count"/ "immutable" / Segment) { bucket =>
-//      post {
-//        complete {
-//          val b = Bucket(bucket)
-//          (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil, immutable = true))
-//            .mapTo[Map[String, Map[String, Map[String, Long]]]]
-//        }
-//      }
-//    } ~
-//   TODO fixme
-//      path("count" / "immutable") {
-//        post {
-//          entity(as[JsonQuery]) { jsonQuery =>
-//            complete {
-//              (routingActor ? jsonQuery.toQuery.copy(immutable = true))
-//                .mapTo[Map[String, Map[String, Map[String, Long]]]]
-//            }
-//          }
-//        }
-//    } ~
       path("post" / Segment / Segment) { case (bucket, elementId) =>
         post {
           entity(as[Map[String,Set[String]]]) { data =>
@@ -133,13 +111,22 @@ object Server extends App with Directives with JsonSupport {
       path("batch"/ "post" / "basic" / Segment ) { case (bucket) =>
         post {
           extractDataBytes { (source: Source[ByteString, Any]) =>
-            val delim = Framing.delimiter(ByteString("\n"),maximumFrameLength = Int.MaxValue,allowTruncation = true)
-            val flow: Flow[ByteString, String, NotUsed] = Flow[ByteString].via(delim).mapAsync(10){ bytes =>
-              (routingActor ? PostCommand(Bucket(bucket), ElementId(bytes.utf8String), Element.root))
+            val delim = Framing.delimiter(ByteString("\n"), maximumFrameLength = Int.MaxValue, allowTruncation = true)
+            val flow: Flow[ByteString, AckOrNack, NotUsed] = Flow[ByteString].via(delim).mapAsync(10){ bytes =>
+              (routingActor ? PostCommand(Bucket(bucket), ElementId(bytes.utf8String), Element.root, persist = false))
                 .mapTo[AckOrNack]
-                .map(_.toString)
             }
-            val y: Future[String] = source.via(flow).runWith(Sink.last)
+            val y: Future[String] = source.via(flow).runWith(Sink.seq).flatMap{seq =>
+              seq.reduce(_ * _) match {
+                case Ack =>
+                  val snapshot = (routingActor ? SaveSnapshot).mapTo[AckOrNack]
+                  snapshot.map{
+                    case Nack => throw new RuntimeException()
+                    case Ack => Ack.toString
+                }
+                case Nack => Future.failed(new RuntimeException())
+              }
+            }
             complete(y)
           }
         }
@@ -193,18 +180,31 @@ object Server extends App with Directives with JsonSupport {
               .map(_.toString)
           }
         }
+      } ~
+      path("shutdown") {
+        post {
+          shutdown()
+          complete("")
+        }
       }
 
 
   val bindingFuture = Http().bindAndHandle(route, "localhost", 9000)
   println(s"Server online at http://localhost:9000/\nPress RETURN to stop...")
   StdIn.readLine() // let it run until user presses return
-  bindingFuture
-    .flatMap(_.unbind()) // trigger unbinding from the port
-    .onComplete{_ =>
-//      documentActor ? Shutdown
-//      metaActor ? Shutdown
-//      audienceActor ? Shutdown
+  shutdown()
+
+  def shutdown(): Unit = {
+    bindingFuture
+      .flatMap(_.unbind()) // trigger unbinding from the port
+      .onComplete{_ =>
+      val f: Future[Future[AckOrNack]] = (routingActor ? Shutdown).mapTo[Future[AckOrNack]]
+      f.flatMap(f => f).onComplete{
+        case Success(ackOrNack) => log.info("shutdown returned: {}", ackOrNack)
+        case Failure(e) => log.warn("shutdown failed", e)
+      }
       system.terminate
     } // and shutdown when done
+
+  }
 }

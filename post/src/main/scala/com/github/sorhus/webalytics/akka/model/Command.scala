@@ -9,7 +9,7 @@ case object Debug extends Command
 case object GetAll extends Command
 case class LoadImmutable(bucket: Bucket, space: Option[Element] = None) extends Command
 case class MakeImmutable(bucket: Bucket, state: Map[Dimension, Map[Value, Bitset[RoaringBitmap]]] = Map.empty)
-case class PostCommand(bucket: Bucket, elementId: ElementId, element: Element) extends Command
+case class PostCommand(bucket: Bucket, elementId: ElementId, element: Element, persist: Boolean = true) extends Command
 case object SaveSnapshot extends Command
 case object Shutdown extends Command
 

@@ -10,18 +10,14 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
 
     case e: PostMetaEvent =>
       log.debug("received postmetaevent")
-      persistAsync(e)(handle)
+//      persistAsync(e)(handle)
       handle(e)
 
     case query: Query =>
       log.debug("received query {}", query)
       val space = state.get(query.dimensions)
       log.debug("space is {}", space)
-//      if(query.immutable) {
-//        immutableSegmentActor forward QueryEvent(query, space)
-//      } else {
-        segmentActor forward QueryEvent(query, space)
-//      }
+      segmentActor forward QueryEvent(query, space)
 
     case i: LoadImmutable =>
       log.info("forwarding LoadImmutable")
@@ -35,7 +31,8 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
       saveSnapshot(state)
 
     case Shutdown =>
-      sender() ! context.stop(self)
+      context.stop(self)
+      sender() ! Ack
 
     case Debug =>
       state.debug()
