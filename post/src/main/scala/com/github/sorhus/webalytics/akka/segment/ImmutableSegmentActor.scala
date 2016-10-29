@@ -1,10 +1,9 @@
 package com.github.sorhus.webalytics.akka.segment
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Props}
 import akka.persistence.PersistentActor
 import com.github.sorhus.webalytics.akka.model._
 import org.slf4j.LoggerFactory
-
 
 class ImmutableSegmentActor(path: String) extends PersistentActor {
 
@@ -16,10 +15,23 @@ class ImmutableSegmentActor(path: String) extends PersistentActor {
 
   override def receiveCommand: Receive = {
 
-    case QueryEvent(query: Query, space: Element, queryState: Option[QuerySegmentState]) =>
+    case QueryCommand(query: Query, space: Element, queryState: Option[QuerySegmentState]) =>
       log.info("received query and space {}", (query, space))
       val s = queryState.get.update(state)
       val response: Map[String, Map[String, Map[String, Long]]] = s.getCount(query, space.e)
+        .map{case(bucket, dimensions) =>
+          bucket.b -> dimensions.map{case(dimension, values) =>
+            dimension.d -> values.map{case(value, count) =>
+              value.v -> count
+            }.toMap
+          }.toMap
+        }.toMap
+      sender() ! response
+
+    case c: CountCommand =>
+      val s = c.state.get.update(state)
+      log.info("received count command {}", s)
+      val response: Map[String, Map[String, Map[String, Long]]] = s.getCounts(c.domain.get)
         .map{case(bucket, dimensions) =>
           bucket.b -> dimensions.map{case(dimension, values) =>
             dimension.d -> values.map{case(value, count) =>

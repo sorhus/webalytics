@@ -15,30 +15,6 @@ trait MetaDao {
   }
 }
 
-class CachedMetaDao(impl: MetaDao)(implicit context: ExecutionContext) extends MetaDao {
-
-  import scalacache._
-  import guava._
-  import memoization._
-
-  implicit val scalaCache = ScalaCache(GuavaCache())
-  override def addMeta(bucket: Bucket, element: Element) = Future {
-    if(sync.get((bucket,element)).isEmpty) {
-      val res = impl.addMeta(bucket, element)
-      sync.caching(bucket)(element)
-      res
-    } else {
-      true
-    }
-  }
-
-  override def getDocumentId(element_id: ElementId): Long = impl.getDocumentId(element_id)
-
-  override def getDimensionValues(dimensions: List[Dimension]): List[(Dimension, Set[Value])] = memoizeSync {
-    impl.getDimensionValues(dimensions)
-  }
-}
-
 class DelayedBatchInsertMetaDao(impl: RedisMetaDao)(implicit context: ExecutionContext) extends MetaDao {
 
   var id: Long = 0
@@ -47,7 +23,7 @@ class DelayedBatchInsertMetaDao(impl: RedisMetaDao)(implicit context: ExecutionC
 
 
   override def addMeta(bucket: Bucket, element: Element) = Future {
-    metaBuckets.put(bucket, Element.merge(metaBuckets.getOrElse(bucket, Element(Map())) :: element :: Nil))
+    metaBuckets.put(bucket, Element.merge(metaBuckets.getOrElse(bucket, Element.fromMap(Map())) :: element :: Nil))
   }
 
   def commit() = {

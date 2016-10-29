@@ -17,7 +17,7 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
       log.debug("received query {}", query)
       val space = state.get(query.dimensions)
       log.debug("space is {}", space)
-      segmentActor forward QueryEvent(query, space)
+      segmentActor forward QueryCommand(query, space)
 
     case i: LoadImmutable =>
       log.info("forwarding LoadImmutable")
@@ -25,6 +25,9 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
 
     case GetAll =>
       sender() ! state.getAll
+
+    case c: CountCommand =>
+      segmentActor forward c.copy(domain = Some(state.getAll))
 
     case SaveSnapshot =>
       log.info("saving snapshot")
@@ -61,7 +64,8 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
       log.debug("received recover postmetaevent")
       handle(e)
 
-    case SnapshotOffer(_, snapshot: DomainState) =>
+//    case SnapshotOffer(_, snapshot: DomainState) =>
+    case SnapshotOffer(_, snapshot: MutableDomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 
@@ -73,7 +77,7 @@ class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) exten
 }
 
 object DomainActor {
-  def props(audienceDao: ActorRef, immutableSegmentActor: ActorRef, readOnlyMetaActor: Option[ActorRef] = None): Props = {
-    Props(new DomainActor(audienceDao, immutableSegmentActor: ActorRef))
+  def props(segmentActor: ActorRef, immutableSegmentActor: ActorRef): Props = {
+    Props(new DomainActor(segmentActor, immutableSegmentActor: ActorRef))
   }
 }

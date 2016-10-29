@@ -2,6 +2,8 @@ package com.github.sorhus.webalytics.akka.model
 
 import java.util.UUID
 
+import scala.collection.concurrent.TrieMap
+import scala.collection.mutable.{Map => MMap, Set => MSet}
 sealed trait Model extends Serializable
 
 case class Bucket(b: String) extends AnyVal
@@ -10,21 +12,93 @@ case class DocumentId(d: Long) extends AnyVal
 case class ElementId(e: String = UUID.randomUUID().toString) extends AnyVal
 case class Filter(f: List[List[Map[Bucket, Element]]]) extends Model
 case class Value(v: String) extends AnyVal
-case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension], immutable: Boolean = false) extends Model
+case class Query(filter: Filter, buckets: List[Bucket], dimensions: List[Dimension], immutable: Boolean = false) extends Model {
+}
+
+case object Root {
+  val value = Value("root")
+  val dimension = Dimension("root")
+  val element: Element = Element(Map(dimension -> Set(value)))
+  def filter(bucket: Bucket) = Filter(List(Map(bucket -> element) :: Nil))
+  def query(bucket: Bucket) = Query(filter(bucket), bucket :: Nil, Root.dimension :: Nil)
+
+}
+
+//trait Element extends Model {
+//  def +(element: Element) = ???
+//
+//  def e: Map[Dimension, Set[Value]]
+//}
 
 case class Element(e: Map[Dimension, Set[Value]]) extends Model {
-  def +(that: Element) = {
+
+  def contains(element: Element): Boolean = {
+    element.e.forall{case(dimension, values) =>
+      e.contains(dimension) && values.forall(e(dimension).contains)
+    }
+  }
+
+  def +(that: Element): Element = {
     val keys = e.keys ++ that.e.keys
     val merged = keys.map{key =>
       key -> (e.getOrElse(key, Set.empty) ++ that.e.getOrElse(key, Set.empty))
     }.toMap
     copy(e = merged)
   }
+
 }
 
+//case class MutableElement(e: MMap[Dimension, MSet[Value]]) extends Model {
+//
+//  def contains(element: Element): Boolean = {
+//    element.e.forall{case(dimension, values) =>
+//      e.contains(dimension) && values.forall(e(dimension).contains)
+//    }
+//    false
+//  }
+//
+//  def +(that: Element): Element = {
+//    that.e.foreach{case (dimension, values)  =>
+//      if(!e.contains(dimension)) {
+//        e.put(dimension, MSet(values.toSeq: _*))
+//      }
+//      values.foreach{value =>
+//        if(!e(dimension).contains(value)) {
+//          e(dimension).add(value)
+//        }
+//      }
+//    }
+//    null
+//  }
+//
+//  def toElement: Element = null
+//    Element {
+//    e.map{case(dimension, values) =>
+//      dimension -> values.toSet
+//    }.toMap
+//  }
+//
+//}
+
+//object MutableElement {
+//  def apply(e: Element): MutableElement = null
+//  {
+//    val map = TrieMap[Dimension, MSet[Value]]()
+//    e.e.foreach{case(dimension, values) =>
+//        map.put(dimension, MSet(values.toSeq: _*))
+//    }
+//    MutableElement(map)
+//  }
+//}
+
 object Element {
+  def apply(data: MMap[Dimension, MSet[Value]]): Element = Element {
+    data.map{case(dimension,values) =>
+      dimension -> values.toSet
+    }.toMap
+  }
+
   def apply() = new Element(Map.empty)
-  val root: Element = fromMap(Map("root" -> Set("root")))
   def fromMap(data: Map[String, Set[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
   }

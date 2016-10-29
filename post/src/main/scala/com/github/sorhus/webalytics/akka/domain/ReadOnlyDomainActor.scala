@@ -25,20 +25,31 @@ class ReadOnlyDomainActor(audienceActor: ActorRef) extends TDomainActor {
       log.info("received query {}", query)
       val space = state.get(query.dimensions)
       log.info("space is {}", space)
-      audienceActor forward QueryEvent(query, space)
+      audienceActor forward QueryCommand(query, space)
 
     case i: LoadImmutable =>
-      val f: Iterable[Future[Any]] = state.data.map{case(bucket, space) =>
-        log.info("Passing on space {}", space)
-        audienceActor ? i.copy(space = Some(space))
-      }
-      Try(Await.result(Future.sequence(f), Duration.Inf)) match {
-        case Success(list) if list.forall(_ == Ack) =>
-          log.info("successful init {}",list)
+//      val f: Iterable[Future[Any]] = state.data.map{case(bucket, space) =>
+//        log.info("Passing on space {}", space)
+//        audienceActor ? i.copy(space = Some(space))
+//      }
+      val space = state.getAll
+      log.info("Passing on space {}", space)
+      val f = audienceActor ? i.copy(space = Some(space))
+//      Try(Await.result(Future.sequence(f), Duration.Inf)) match {
+//    case Success(list) if list.forall(_ == Ack) =>
+//      log.info("successful init {}",list)
+//      sender() ! Ack
+//    case Failure(e) =>
+//      log.warn("failed to Initialize", e)
+//      sender() ! Nack
+//    case _ =>
+//      log.warn("failed to Initialize")
+//      sender() ! Nack
+//  }
+      Try(Await.result(f, Duration.Inf)) match {
+        case Success(Ack) =>
+          log.info("successful init")
           sender() ! Ack
-        case Failure(e) =>
-          log.warn("failed to Initialize", e)
-          sender() ! Nack
         case _ =>
           log.warn("failed to Initialize")
           sender() ! Nack
@@ -50,7 +61,8 @@ class ReadOnlyDomainActor(audienceActor: ActorRef) extends TDomainActor {
 
   override def receiveRecover: Receive = {
 
-    case SnapshotOffer(_, snapshot: DomainState) =>
+//    case SnapshotOffer(_, snapshot: DomainState) =>
+    case SnapshotOffer(_, snapshot: MutableDomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 

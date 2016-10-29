@@ -24,8 +24,11 @@ class SegmentActor(immutableSegmentActor: ActorRef) extends PersistentActor {
 //      persistAsync(e)(handle)
       handle(e)
 
-    case q: QueryEvent =>
+    case q: QueryCommand =>
       immutableSegmentActor forward q.copy(state = Some(QuerySegmentState(state)))
+
+    case c: CountCommand =>
+      immutableSegmentActor forward c.copy(state = Some(QuerySegmentState(state)))
 
     case CloseBucket(bucket) =>
       log.info("closing bucket")

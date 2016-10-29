@@ -8,7 +8,8 @@ trait TDomainActor extends PersistentActor {
 
   val log = LoggerFactory.getLogger(getClass)
 
-  var state = DomainState()
+//  var state = DomainState()
+  var state = MutableDomainState()
 
   def handle(e: PostMetaEvent) = {
     state = state.update(e)
@@ -22,7 +23,8 @@ trait TDomainActor extends PersistentActor {
       log.info("received recover postmetaevent")
       handle(e)
 
-    case SnapshotOffer(_, snapshot: DomainState) =>
+//    case SnapshotOffer(_, snapshot: DomainState) =>
+    case SnapshotOffer(_, snapshot: MutableDomainState) =>
       log.info("restoring state from snapshot")
       state = snapshot
 

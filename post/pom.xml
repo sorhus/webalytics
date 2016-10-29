@@ -17,32 +17,12 @@
             <artifactId>scala-library</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.scalatra</groupId>
-            <artifactId>scalatra_2.11</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.zaxxer</groupId>
-            <artifactId>SparseBitSet</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.scalatra</groupId>
-            <artifactId>scalatra-json_2.11</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.json4s</groupId>
             <artifactId>json4s-jackson_2.11</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.scalatra</groupId>
-            <artifactId>scalatra-scalate_2.11</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.github.etaty</groupId>
             <artifactId>rediscala_2.11</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.github.cb372</groupId>
-            <artifactId>scalacache-guava_2.11</artifactId>
         </dependency>
         <dependency>
             <groupId>org.roaringbitmap</groupId>
@@ -84,20 +64,6 @@
             <groupId>org.fusesource.leveldbjni</groupId>
             <artifactId>leveldbjni-all</artifactId>
         </dependency>
-        <dependency>
-            <groupId>net.databinder.dispatch</groupId>
-            <artifactId>dispatch-core_2.11</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty.orbit</groupId>
-            <artifactId>javax.servlet</artifactId>
-            <!--<scope>provided</scope>-->
-        </dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-webapp</artifactId>
-            <!--<scope>compile</scope>-->
-        </dependency>
     </dependencies>
 
     <build>
@@ -119,7 +85,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.github.sorhus.webalytics.api.Main</mainClass>
+                            <mainClass>com.github.sorhus.webalytics.akka.Server</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
@@ -157,12 +123,6 @@
                         </goals>
                         <configuration>
                             <filters>
-                                <!--<filter>-->
-                                    <!--<artifact>groupname:artifactname</artifact>-->
-                                    <!--<includes>-->
-                                        <!--<include>**/*</include>-->
-                                    <!--</includes>-->
-                                <!--</filter>-->
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>

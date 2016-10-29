@@ -36,6 +36,7 @@ trait BitsetOps[T] extends Serializable {
   def or(toOr: Iterable[T]): Bitset[T]
   def and(toAnd: Iterable[T]): Bitset[T]
   def andCardinality(x: T, y: T): Long
+  def cardinality(x: T): Long
 }
 
 object MutableBitsetOps extends BitsetOps[RoaringBitmap] {
@@ -44,6 +45,7 @@ object MutableBitsetOps extends BitsetOps[RoaringBitmap] {
   override def or(toOr: Iterable[RoaringBitmap]): RoaringBitmapWrapper = cons(FastAggregation.or(toOr.toSeq: _*))
   override def and(toAnd: Iterable[RoaringBitmap]): RoaringBitmapWrapper = cons(FastAggregation.and(toAnd.toSeq: _*))
   override def andCardinality(x: RoaringBitmap, y: RoaringBitmap): Long = RoaringBitmap.andCardinality(x,y)
+  override def cardinality(x: RoaringBitmap): Long = x.getLongCardinality
 }
 
 object ImmutableBitsetOps extends BitsetOps[ImmutableBitmapDataProvider] {
@@ -51,16 +53,15 @@ object ImmutableBitsetOps extends BitsetOps[ImmutableBitmapDataProvider] {
   override def or(toOr: Iterable[ImmutableBitmapDataProvider]) = cons(BufferFastAggregation.or(toOr.map(_.asInstanceOf[ImmutableRoaringBitmap]).toSeq: _*))
   override def and(toAnd: Iterable[ImmutableBitmapDataProvider]) = cons(BufferFastAggregation.and(toAnd.map(_.asInstanceOf[ImmutableRoaringBitmap]).toSeq: _*))
   override def andCardinality(x: ImmutableBitmapDataProvider, y: ImmutableBitmapDataProvider): Long = ImmutableRoaringBitmap.and(x.asInstanceOf[ImmutableRoaringBitmap],y.asInstanceOf[ImmutableRoaringBitmap]).getLongCardinality
+  override def cardinality(x: ImmutableBitmapDataProvider): Long = x.getLongCardinality
 }
 
 
 trait MapWrapper[T] extends Serializable {
 
-//  def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[T]]
   def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[T]]
 }
 
-// TODO make class
 class ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
   var bitsets = Map[Bucket, Map[Dimension, Map[Value, Bitset[ImmutableBitmapDataProvider]]]]()
 
@@ -73,7 +74,6 @@ class ImmutableMapWrapper extends MapWrapper[ImmutableBitmapDataProvider] {
   }.toOption
 }
 
-// TODO make class
 class MutableMapWrapper extends MapWrapper[RoaringBitmap] {
 
   var bitsets = MMap[Bucket, MMap[Dimension, MMap[Value, MutableBitset[RoaringBitmap]]]]()
@@ -107,6 +107,9 @@ class MutableMapWrapper extends MapWrapper[RoaringBitmap] {
 }
 
 class QueryMapWrapper(mutable: MutableMapWrapper, immutable: ImmutableMapWrapper) extends MapWrapper[ImmutableBitmapDataProvider] {
+
+  def allBuckets: Iterable[Bucket] = mutable.bitsets.keys ++ immutable.bitsets.keys
+
   override def getOption(bucket: Bucket, dimension: Dimension, value: Value): Option[Bitset[ImmutableBitmapDataProvider]] = {
     val y = mutable.getOption(bucket, dimension, value).map { m =>
       val i = m.impl()

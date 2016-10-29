@@ -3,13 +3,13 @@ package com.github.sorhus.webalytics.akka
 import java.util.concurrent.TimeUnit
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, DeadLetter}
-import akka.stream.ActorMaterializer
+import akka.actor.{ActorRef, ActorSystem}
+import akka.stream.{ActorAttributes, ActorMaterializer}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives
 import com.github.sorhus.webalytics.akka.model._
-import spray.json.DefaultJsonProtocol
+import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 import akka.pattern.ask
 import akka.stream.scaladsl._
 import akka.util.{ByteString, Timeout}
@@ -19,10 +19,13 @@ import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
 import scala.io.StdIn
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val jsonQueryFormat = jsonFormat3(JsonQuery)
+//  implicit val jsonDimensionFormat = jsonFormat1(Dimension)
+//  implicit val jsonValueFormat: RootJsonFormat[Value] = jsonFormat1(Value)
+//  implicit val jsonElementFormat: RootJsonFormat[Element] = jsonFormat1(Element.apply)
 }
 
 object Server extends App with Directives with JsonSupport {
@@ -31,16 +34,14 @@ object Server extends App with Directives with JsonSupport {
 
   implicit val system = ActorSystem("server")
 
+  log.debug("settings: {}", system.settings)
+
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
   implicit val timeout = Timeout(1, TimeUnit.MINUTES)
   implicit val jsonFormats: Formats = DefaultFormats
 
-  val deadLetter = system.actorOf(DeadLetterLoggingActor.props(), "dead-letter")
-  system.eventStream.subscribe(deadLetter, classOf[DeadLetter])
-
   val routingActor: ActorRef = system.actorOf(RoutingActor.props(), "routing")
-
 
     val route =
 //    path("debug") {
@@ -50,25 +51,57 @@ object Server extends App with Directives with JsonSupport {
 //        complete("")
 //      }
 //    } ~
-      path("count"/ Segment) { bucket =>
-        post {
-            complete {
-              val b = Bucket(bucket)
-              (routingActor ? Query(Filter((Map(b -> Element.root) :: Nil) :: Nil), b :: Nil, Dimension("root") :: Nil))
-                .mapTo[Map[String, Map[String, Map[String, Long]]]]
-            }
+      path("") {
+        get {
+          getFromResource("static/index.html")
         }
       } ~
-    path("count") {
-      post {
-        entity(as[JsonQuery]) { jsonQuery =>
+      path("static" / Segment) { file =>
+        get {
+          getFromResource(s"static/$file")
+        }
+      } ~
+      path("domain") {
+        get {
           complete {
-            (routingActor ? jsonQuery.toQuery)
-              .mapTo[Map[String, Map[String, Map[String, Long]]]]
+            (routingActor ? GetAll)
+              .mapTo[Element]
+              .map(_.e)
+              .map(m => m.map{case(d,v) => d.d -> v.map(vv => vv.v)})
           }
         }
-      }
-    } ~
+      } ~
+      path("count") {
+        get {
+//          entity(as[String]) {
+          parameters('bucket.as[String]) { b =>
+            complete {
+              val bucket = Bucket(b)
+              (routingActor ? Root.query(bucket))
+                .mapTo[Map[String, Map[String, Map[String, Long]]]]
+                .map(map => Try(map(bucket.b)(Root.dimension.d)(Root.value.v)).getOrElse(0L).toString)
+            }
+          }
+        }
+      } ~
+      path("count") {
+        post {
+          entity(as[JsonQuery]) { jsonQuery =>
+            complete {
+              (routingActor ? jsonQuery.toQuery)
+                .mapTo[Map[String, Map[String, Map[String, Long]]]]
+            }
+          }
+        }
+      } ~
+      path("count" / "all") {
+        post {
+          complete {
+            (routingActor ? CountCommand())
+                .mapTo[Map[String, Map[String, Map[String, Long]]]]
+            }
+          }
+      } ~
       path("post" / Segment / Segment) { case (bucket, elementId) =>
         post {
           entity(as[Map[String,Set[String]]]) { data =>
@@ -82,7 +115,7 @@ object Server extends App with Directives with JsonSupport {
         post {
           entity(as[String]) { data =>
             complete {
-              (routingActor ? PostCommand(Bucket(bucket), ElementId(elementId), Element.root))
+              (routingActor ? PostCommand(Bucket(bucket), ElementId(elementId), Root.element))
                 .mapTo[AckOrNack]
                 .map(_.toString)
             }
@@ -92,18 +125,28 @@ object Server extends App with Directives with JsonSupport {
       path("batch"/ "post" / Segment ) { case (bucket) =>
         post {
           extractDataBytes { (source: Source[ByteString, Any]) =>
-            val delim = Framing.delimiter(ByteString("\n"),maximumFrameLength = Int.MaxValue,allowTruncation = true)
-            val flow: Flow[ByteString, String, NotUsed] = Flow[ByteString].via(delim).mapAsync(10){ bytes =>
+            val delim = Framing.delimiter(ByteString("\n"), maximumFrameLength = Int.MaxValue, allowTruncation = true)
+            val flow: Flow[ByteString, AckOrNack, NotUsed] = Flow[ByteString].via(delim).mapAsync(10) { bytes =>
               val (elementId, json) = bytes.utf8String.split("\t") match {
                 case Array(json) => (ElementId(), json)
                 case Array(elementId, json) => (ElementId(elementId), json)
               }
               val data = parse(json).extract[Map[String, Set[String]]]
-              (routingActor ? PostCommand(Bucket(bucket), elementId, Element.fromMap(data)))
+              (routingActor ? PostCommand(Bucket(bucket), elementId, Element.fromMap(data), persist = false))
                 .mapTo[AckOrNack]
-                .map(_.toString)
             }
-            val y: Future[String] = source.via(flow).runWith(Sink.last)
+            val y: Future[String] = source.via(flow).runWith(Sink.seq).flatMap { seq =>
+              seq.reduce(_ * _) match {
+//                case Ack => Future.successful(Ack.toString)
+                case Ack =>
+                  val snapshot = (routingActor ? SaveSnapshot).mapTo[AckOrNack]
+                  snapshot.map {
+                    case Nack => throw new RuntimeException()
+                    case Ack => Ack.toString
+                  }
+                case Nack => Future.failed(new RuntimeException())
+              }
+            }
             complete(y)
           }
         }
@@ -112,8 +155,8 @@ object Server extends App with Directives with JsonSupport {
         post {
           extractDataBytes { (source: Source[ByteString, Any]) =>
             val delim = Framing.delimiter(ByteString("\n"), maximumFrameLength = Int.MaxValue, allowTruncation = true)
-            val flow: Flow[ByteString, AckOrNack, NotUsed] = Flow[ByteString].via(delim).mapAsync(10){ bytes =>
-              (routingActor ? PostCommand(Bucket(bucket), ElementId(bytes.utf8String), Element.root, persist = false))
+            val flow: Flow[ByteString, AckOrNack, NotUsed] = Flow[ByteString].via(delim).mapAsync(10) { bytes =>
+              (routingActor ? PostCommand(Bucket(bucket), ElementId(bytes.utf8String), Root.element, persist = false))
                 .mapTo[AckOrNack]
             }
             val y: Future[String] = source.via(flow).runWith(Sink.seq).flatMap{seq =>
@@ -189,10 +232,21 @@ object Server extends App with Directives with JsonSupport {
       }
 
 
-  val bindingFuture = Http().bindAndHandle(route, "localhost", 9000)
-  println(s"Server online at http://localhost:9000/\nPress RETURN to stop...")
-  StdIn.readLine() // let it run until user presses return
-  shutdown()
+  val port = 9000
+  val bindingFuture = Http().bindAndHandle(route, "localhost", port)
+  println(s"Server online at http://localhost:$port/\nPress RETURN to stop...")
+
+  Runtime.getRuntime.addShutdownHook(new Thread(new Runnable {
+    override def run(): Unit = {
+      log.info("Executing shutdown hook")
+      shutdown()
+      log.info("Shutdown hook complete")
+    }
+  }))
+
+  while(true) {
+    Thread.sleep(3000)
+  }
 
   def shutdown(): Unit = {
     bindingFuture

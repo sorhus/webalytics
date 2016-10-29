@@ -1,6 +1,6 @@
 package com.github.sorhus.webalytics.akka.model
 
-import com.github.sorhus.webalytics.akka.segment.{Bitset, MutableMapWrapper}
+import com.github.sorhus.webalytics.akka.segment.{Bitset, QuerySegmentState}
 import org.roaringbitmap.RoaringBitmap
 
 sealed trait Command
@@ -12,6 +12,10 @@ case class MakeImmutable(bucket: Bucket, state: Map[Dimension, Map[Value, Bitset
 case class PostCommand(bucket: Bucket, elementId: ElementId, element: Element, persist: Boolean = true) extends Command
 case object SaveSnapshot extends Command
 case object Shutdown extends Command
+
+case class QueryCommand(query: Query, space: Element, state: Option[QuerySegmentState] = None) extends Command
+case class CountCommand(domain: Option[Element] = None, state: Option[QuerySegmentState] = None) extends Command
+
 
 sealed trait AckOrNack {
   def *(that: AckOrNack): AckOrNack = Nack

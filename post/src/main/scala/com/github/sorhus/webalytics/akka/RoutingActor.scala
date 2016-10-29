@@ -1,6 +1,6 @@
 package com.github.sorhus.webalytics.akka
 
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.github.sorhus.webalytics.akka.document.DocumentIdActor
@@ -20,6 +20,12 @@ class RoutingActor(documentActor: ActorRef, domainActor: ActorRef, segmentActor:
 
     case q: Query =>
       domainActor forward q
+
+    case GetAll =>
+      domainActor forward GetAll
+
+    case c: CountCommand =>
+      domainActor forward c
 
     case SaveSnapshot =>
       documentActor ! SaveSnapshot
@@ -50,7 +56,10 @@ class RoutingActor(documentActor: ActorRef, domainActor: ActorRef, segmentActor:
 
 object RoutingActor {
   def props()(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout) = {
-    val roaringDir = "roaring" // TODO don't hardcode
+    val roaringDir = system.settings.config.getString("akka.actor.roaring.path")
+
+    val deadLetter = system.actorOf(DeadLetterLoggingActor.props(), "dead-letter")
+    system.eventStream.subscribe(deadLetter, classOf[DeadLetter])
 
     val immutableSegmentActor = system.actorOf(ImmutableSegmentActor.props(roaringDir), "immutable-segment")
     val segmentActor: ActorRef = system.actorOf(SegmentActor.props(immutableSegmentActor), "segment")

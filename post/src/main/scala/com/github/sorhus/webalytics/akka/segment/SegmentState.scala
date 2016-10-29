@@ -6,9 +6,10 @@ import java.nio.channels.FileChannel.MapMode
 
 import com.github.sorhus.webalytics.akka.model._
 import org.roaringbitmap.{ImmutableBitmapDataProvider, RoaringBitmap}
-import org.roaringbitmap.buffer.{ImmutableRoaringBitmap, MutableRoaringBitmap}
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap
 import org.slf4j.LoggerFactory
 
+import scala.collection.immutable.Iterable
 import scala.collection.mutable.{Map => MMap, Set => MSet}
 
 abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
@@ -17,18 +18,34 @@ abstract class ASegmentState[T](bitsetOps: BitsetOps[T]) extends Serializable {
 
   def bitsets: MapWrapper[T]
 
+  def getAllBuckets: Iterable[Bucket]
+
   def getCount(query: Query, space: Map[Dimension, Set[Value]]): Iterable[(Bucket, Iterable[(Dimension, Iterable[(Value, Long)])])] = {
     val audience: Bitset[T] = getAudience(query.filter)
     query.buckets.map{ bucket =>
       bucket -> space.map{case(dimension, values) =>
-        dimension -> values.map{value =>
+        dimension -> values.flatMap{value =>
           val bitset: Option[Bitset[T]] = bitsets.getOption(bucket, dimension, value)
-          value -> bitset.map(bs => bitsetOps.andCardinality(audience.impl(), bs.impl())).getOrElse(0L)
+          bitset.map { bs =>
+            value -> bitsetOps.andCardinality(audience.impl(), bs.impl())
+          }
         }
       }
     }
   }
 
+  def getCounts(domain: Element): Iterable[(Bucket, Iterable[(Dimension, Iterable[(Value, Long)])])] = {
+    getAllBuckets.map{bucket =>
+      bucket -> domain.e.map{case(dimension, values) =>
+        dimension -> values.flatMap{value =>
+          val bitset: Option[Bitset[T]] = bitsets.getOption(bucket, dimension, value)
+          bitset.map{bs =>
+            value -> bs.cardinality()
+          }
+        }.toList
+      }.toList
+    }.toList
+  }
 
   private def getAudience(filter: Filter): Bitset[T] = {
     val toAnd: List[Bitset[T]] = filter.f.map{ and: List[Map[Bucket, Element]] =>
@@ -77,6 +94,7 @@ class MutableSegmentState extends ASegmentState[RoaringBitmap](MutableBitsetOps)
     bitsets.remove(bucket)
   }
 
+  override def getAllBuckets: Iterable[Bucket] = bitsets.bitsets.keys.toList
 }
 
 class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
@@ -133,11 +151,16 @@ class ImmutableSegmentState(path: String) extends ASegmentState[ImmutableBitmapD
 
     bitsets.put(bucket, result)
   }
+
+  override def getAllBuckets: Iterable[Bucket] = bitsets.bitsets.keys.toList
 }
 
 case class QuerySegmentState(mutableState: MutableSegmentState, immutableState: Option[ImmutableSegmentState] = None)
   extends ASegmentState[ImmutableBitmapDataProvider](ImmutableBitsetOps) {
+
   def update(state: ImmutableSegmentState) = copy(immutableState = Some(state))
 
   def bitsets = new QueryMapWrapper(mutableState.bitsets, immutableState.get.bitsets)
+
+  override def getAllBuckets: Iterable[Bucket] = mutableState.getAllBuckets ++ immutableState.map(_.getAllBuckets).getOrElse(Nil)
 }

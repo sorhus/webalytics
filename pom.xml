@@ -16,8 +16,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <scala.version>2.11.8</scala.version>
-        <scalatra.version>2.3.1</scalatra.version>
+        <scala.version.major>2.11</scala.version.major>
+        <scala.version>${scala.version.major}.8</scala.version>
+        <akka.version>2.4.11</akka.version>
     </properties>
 
     <dependencyManagement>
@@ -28,40 +29,14 @@
                 <version>${scala.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.scalatra</groupId>
-                <artifactId>scalatra_2.11</artifactId>
-                <version>${scalatra.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.scalatra</groupId>
-                <artifactId>scalatra-json_2.11</artifactId>
-                <version>2.3.0</version>
-            </dependency>
-            <dependency>
                 <groupId>org.json4s</groupId>
                 <artifactId>json4s-jackson_2.11</artifactId>
                 <version>3.2.9</version>
             </dependency>
             <dependency>
-                <groupId>org.scalatra</groupId>
-                <artifactId>scalatra-scalate_2.11</artifactId>
-                <version>${scalatra.version}</version>
-                <scope>compile</scope>
-            </dependency>
-            <dependency>
                 <groupId>com.github.etaty</groupId>
-                <artifactId>rediscala_2.11</artifactId>
+                <artifactId>rediscala_${scala.version.major}</artifactId>
                 <version>1.6.0</version>
-            </dependency>
-            <dependency>
-                <groupId>com.zaxxer</groupId>
-                <artifactId>SparseBitSet</artifactId>
-                <version>1.0</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.cb372</groupId>
-                <artifactId>scalacache-guava_2.11</artifactId>
-                <version>0.9.2</version>
             </dependency>
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
@@ -75,33 +50,33 @@
             </dependency>
             <dependency>
                 <groupId>com.github.romix.akka</groupId>
-                <artifactId>akka-kryo-serialization_2.11</artifactId>
+                <artifactId>akka-kryo-serialization_${scala.version.major}</artifactId>
                 <version>0.4.1</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-actor_2.11</artifactId>
-                <version>2.4.11</version>
+                <artifactId>akka-actor_${scala.version.major}</artifactId>
+                <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-persistence_2.11</artifactId>
-                <version>2.4.11</version>
+                <artifactId>akka-persistence_${scala.version.major}</artifactId>
+                <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-persistence-query-experimental_2.11</artifactId>
-                <version>2.4.11</version>
+                <artifactId>akka-persistence-query-experimental_${scala.version.major}</artifactId>
+                <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-http-experimental_2.11</artifactId>
-                <version>2.4.11</version>
+                <artifactId>akka-http-experimental_${scala.version.major}</artifactId>
+                <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-http-spray-json-experimental_2.11</artifactId>
-                <version>2.4.11</version>
+                <artifactId>akka-http-spray-json-experimental_${scala.version.major}</artifactId>
+                <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.iq80.leveldb</groupId>
@@ -114,34 +89,9 @@
                 <version>1.8</version>
             </dependency>
             <dependency>
-                <groupId>net.databinder.dispatch</groupId>
-                <artifactId>dispatch-core_2.11</artifactId>
-                <version>0.11.1</version>
-            </dependency>
-            <dependency>
-                <groupId>org.eclipse.jetty.orbit</groupId>
-                <artifactId>javax.servlet</artifactId>
-                <version>3.0.0.v201112011016</version>
-            </dependency>
-            <dependency>
-                <groupId>org.eclipse.jetty</groupId>
-                <artifactId>jetty-webapp</artifactId>
-                <version>9.0.4.v20130625</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.httpcomponents</groupId>
-                <artifactId>httpcore</artifactId>
-                <version>4.4.1</version>
-            </dependency>
-            <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>19.0</version>
-            </dependency>
-            <dependency>
-                <groupId>javax.inject</groupId>
-                <artifactId>javax.inject</artifactId>
-                <version>1</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
