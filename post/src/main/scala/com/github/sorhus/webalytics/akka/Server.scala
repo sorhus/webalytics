@@ -30,6 +30,8 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
 object Server extends App with Directives with JsonSupport {
 
+  val PROD = args.headOption.getOrElse("") == "PROD"
+
   val log = LoggerFactory.getLogger(getClass)
 
   implicit val system = ActorSystem("server")
@@ -58,7 +60,11 @@ object Server extends App with Directives with JsonSupport {
       } ~
       path("static" / Segment) { file =>
         get {
-          getFromResource(s"static/$file")
+          if(PROD) {
+            getFromResource(s"static/$file")
+          } else {
+            getFromDirectory(s"post/src/main/resources/static/$file") // hot load in dev mode
+          }
         }
       } ~
       path("domain") {

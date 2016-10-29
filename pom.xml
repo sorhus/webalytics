@@ -18,7 +18,8 @@
         <java.version>1.8</java.version>
         <scala.version.major>2.11</scala.version.major>
         <scala.version>${scala.version.major}.8</scala.version>
-        <akka.version>2.4.11</akka.version>
+        <akka.version>2.4.12</akka.version>
+        <akka.http.version>2.4.11</akka.http.version>
     </properties>
 
     <dependencyManagement>
@@ -71,12 +72,12 @@
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-http-experimental_${scala.version.major}</artifactId>
-                <version>${akka.version}</version>
+                <version>${akka.http.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-http-spray-json-experimental_${scala.version.major}</artifactId>
-                <version>${akka.version}</version>
+                <version>${akka.http.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.iq80.leveldb</groupId>

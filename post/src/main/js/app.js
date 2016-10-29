@@ -6,7 +6,7 @@ class Dimension extends React.Component {
     render() {
         var rows = [];
         for (var i = 0; i < this.props.values.length; i++) {
-            rows.push(<li>{this.props.values[i]}}</li>);
+            rows.push(<li>{this.props.values[i]}</li>);
         }
         return (
             <li>{this.props.name}:
