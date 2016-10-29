@@ -1,12 +1,15 @@
 .idea
 target
 *.iml
-post/journal
-post/roaring
-post/data
 
-*/npm-debug.log
-*/.DS_Store
- */bundle.js
- */bundle.js.map
+journal
+roaring
+snapshots
+data
 
+**/bundle.js
+**/bundle.js.map
+
+post/.DS_Store
+post/npm-debug.log
+post/node_modules
