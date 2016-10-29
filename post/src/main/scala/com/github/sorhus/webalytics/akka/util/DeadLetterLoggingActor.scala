@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.akka
+package com.github.sorhus.webalytics.akka.util
 
 import akka.actor.{Actor, DeadLetter, Props}
 import org.slf4j.LoggerFactory

@@ -1,6 +1,7 @@
 package com.github.sorhus.webalytics.akka.domain
 
-import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.akka.event._
+import com.github.sorhus.webalytics.akka.model.{Bucket, Dimension, Element, Value}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.{Map => MMap, Set => MSet}

@@ -1,4 +1,6 @@
-package com.github.sorhus.webalytics.akka.model
+package com.github.sorhus.webalytics.akka.event
+
+import com.github.sorhus.webalytics.akka.model.{Bucket, DocumentId, Element, ElementId}
 
 sealed trait Event extends Serializable
 // TODO if persisting events also in segmentactor, split this and make element transient in documentActor

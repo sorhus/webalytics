@@ -4,6 +4,7 @@ import java.io.{DataOutputStream, File, FileOutputStream, RandomAccessFile}
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel.MapMode
 
+import com.github.sorhus.webalytics.akka.event._
 import com.github.sorhus.webalytics.akka.model._
 import org.roaringbitmap.{ImmutableBitmapDataProvider, RoaringBitmap}
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap

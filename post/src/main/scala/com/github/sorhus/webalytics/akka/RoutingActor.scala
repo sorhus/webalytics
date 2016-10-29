@@ -6,7 +6,9 @@ import akka.util.Timeout
 import com.github.sorhus.webalytics.akka.document.DocumentIdActor
 import com.github.sorhus.webalytics.akka.domain.DomainActor
 import com.github.sorhus.webalytics.akka.segment.{ImmutableSegmentActor, SegmentActor}
-import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.akka.event._
+import com.github.sorhus.webalytics.akka.model.Query
+import com.github.sorhus.webalytics.akka.util.DeadLetterLoggingActor
 
 import scala.concurrent.{ExecutionContext, Future}
 

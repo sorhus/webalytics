@@ -2,7 +2,8 @@ package com.github.sorhus.webalytics.akka.domain
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
-import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.akka.event._
+import com.github.sorhus.webalytics.akka.model.Query
 
 class DomainActor(segmentActor: ActorRef, immutableSegmentActor: ActorRef) extends TDomainActor {
 

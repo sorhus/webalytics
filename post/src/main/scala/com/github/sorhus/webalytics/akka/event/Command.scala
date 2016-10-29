@@ -1,5 +1,6 @@
-package com.github.sorhus.webalytics.akka.model
+package com.github.sorhus.webalytics.akka.event
 
+import com.github.sorhus.webalytics.akka.model._
 import com.github.sorhus.webalytics.akka.segment.{Bitset, QuerySegmentState}
 import org.roaringbitmap.RoaringBitmap
 

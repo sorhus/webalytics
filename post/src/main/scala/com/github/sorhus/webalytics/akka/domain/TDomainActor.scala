@@ -1,7 +1,7 @@
 package com.github.sorhus.webalytics.akka.domain
 
 import akka.persistence.{PersistentActor, SnapshotOffer}
-import com.github.sorhus.webalytics.akka.model.PostMetaEvent
+import com.github.sorhus.webalytics.akka.event.PostMetaEvent
 import org.slf4j.LoggerFactory
 
 trait TDomainActor extends PersistentActor {

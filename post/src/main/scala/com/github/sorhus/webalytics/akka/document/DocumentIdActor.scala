@@ -2,7 +2,7 @@ package com.github.sorhus.webalytics.akka.document
 
 import akka.actor.{ActorRef, Props}
 import akka.persistence._
-import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.akka.event._
 import org.slf4j.LoggerFactory
 
 class DocumentIdActor(audienceActor: ActorRef, domainActor: ActorRef) extends PersistentActor {

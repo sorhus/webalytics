@@ -138,8 +138,8 @@ const App = React.createClass({
     render() {
         return (
             <div>
-                <DomainApp />
-                <br></br>
+                {/*<DomainApp />*/}
+                {/*<br></br>*/}
                 <CountApp />
             </div>
         )

@@ -1,6 +1,7 @@
 package com.github.sorhus.webalytics.cruft.redis
 
 import akka.actor.ActorSystem
+import com.github.sorhus.webalytics.akka.event._
 import com.github.sorhus.webalytics.akka.model._
 import com.github.sorhus.webalytics.cruft.model._
 import redis.RedisClient

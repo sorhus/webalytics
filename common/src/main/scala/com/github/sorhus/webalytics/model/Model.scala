@@ -2,7 +2,6 @@ package com.github.sorhus.webalytics.akka.model
 
 import java.util.UUID
 
-import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.{Map => MMap, Set => MSet}
 sealed trait Model extends Serializable
 
@@ -99,8 +98,13 @@ object Element {
   }
 
   def apply() = new Element(Map.empty)
+
   def fromMap(data: Map[String, Set[String]]): Element = {
     Element(data.map{case(d,v) => Dimension(d) -> v.map(Value.apply)})
+  }
+
+  def toMap(e: Element): Map[String, Set[String]] = {
+    e.e.map{case(d,v) => d.d -> v.map(_.v)}
   }
 
   def merge(dimensionValues: Iterable[Element]): Element = {
@@ -119,6 +123,7 @@ object Element {
 
     Element(e)
   }
+
 }
 
 case class JsonQuery(

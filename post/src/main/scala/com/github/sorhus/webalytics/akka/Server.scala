@@ -4,21 +4,21 @@ import java.util.concurrent.TimeUnit
 
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem}
-import akka.stream.{ActorAttributes, ActorMaterializer}
+import akka.stream.ActorMaterializer
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.server.Directives
-import com.github.sorhus.webalytics.akka.model._
-import spray.json.{DefaultJsonProtocol, RootJsonFormat}
+import com.github.sorhus.webalytics.akka.event._
+import spray.json.DefaultJsonProtocol
 import akka.pattern.ask
 import akka.stream.scaladsl._
 import akka.util.{ByteString, Timeout}
+import com.github.sorhus.webalytics.akka.model._
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods._
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.Future
-import scala.io.StdIn
 import scala.util.{Failure, Success, Try}
 
 trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
@@ -134,8 +134,8 @@ object Server extends App with Directives with JsonSupport {
             val delim = Framing.delimiter(ByteString("\n"), maximumFrameLength = Int.MaxValue, allowTruncation = true)
             val flow: Flow[ByteString, AckOrNack, NotUsed] = Flow[ByteString].via(delim).mapAsync(10) { bytes =>
               val (elementId, json) = bytes.utf8String.split("\t") match {
-                case Array(json) => (ElementId(), json)
-                case Array(elementId, json) => (ElementId(elementId), json)
+                case Array(js) => (ElementId(), js)
+                case Array(id, js) => (ElementId(id), js)
               }
               val data = parse(json).extract[Map[String, Set[String]]]
               (routingActor ? PostCommand(Bucket(bucket), elementId, Element.fromMap(data), persist = false))

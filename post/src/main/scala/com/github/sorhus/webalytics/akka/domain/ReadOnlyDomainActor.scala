@@ -3,10 +3,11 @@ package com.github.sorhus.webalytics.akka.domain
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, Props}
-import com.github.sorhus.webalytics.akka.model._
+import com.github.sorhus.webalytics.akka.event._
 import akka.pattern.ask
 import akka.persistence.SnapshotOffer
 import akka.util.Timeout
+import com.github.sorhus.webalytics.akka.model.Query
 
 import scala.collection.immutable.Iterable
 import scala.concurrent.duration.Duration

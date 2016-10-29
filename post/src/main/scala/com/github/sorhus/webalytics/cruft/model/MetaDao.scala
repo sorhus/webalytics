@@ -1,5 +1,6 @@
 package com.github.sorhus.webalytics.cruft.model
 
+import com.github.sorhus.webalytics.akka.event._
 import com.github.sorhus.webalytics.akka.model._
 import com.github.sorhus.webalytics.cruft.redis.RedisMetaDao
 

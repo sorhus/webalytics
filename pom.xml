@@ -8,7 +8,9 @@
     <artifactId>webalytics</artifactId>
     <version>0.1.0</version>
     <modules>
+        <module>common</module>
         <module>post</module>
+        <module>client</module>
     </modules>
     <packaging>pom</packaging>
 
@@ -24,6 +26,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.github.sorhus.webalytics</groupId>
+                <artifactId>common</artifactId>
+                <version>${version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-library</artifactId>

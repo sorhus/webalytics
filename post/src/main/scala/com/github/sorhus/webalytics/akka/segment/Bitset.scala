@@ -26,10 +26,6 @@ class RoaringBitmapWrapper(val impl: RoaringBitmap = new RoaringBitmap()) extend
 
 class ImmutableRoaringBitmapWrapper(val impl: ImmutableBitmapDataProvider) extends Bitset[ImmutableBitmapDataProvider] {
   override def cardinality(): Long = impl.getLongCardinality
-//  def toImmutable: Bitset[ImmutableRoaringBitmap] = {
-//    impl.
-//  }
-
 }
 
 trait BitsetOps[T] extends Serializable {
@@ -117,7 +113,6 @@ class QueryMapWrapper(mutable: MutableMapWrapper, immutable: ImmutableMapWrapper
       new ImmutableRoaringBitmapWrapper(n)
     }
 
-//      .orElse(
     val x = immutable.getOption(bucket, dimension, value).map(_.impl()).map(m => new ImmutableRoaringBitmapWrapper(m))
 
     val z: Option[ImmutableRoaringBitmapWrapper] = y.orElse(x)
