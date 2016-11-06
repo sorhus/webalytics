@@ -1,4 +1,4 @@
-package com.github.sorhus.webalytics.akka.model
+package com.github.sorhus.webalytics.model
 
 import java.util.UUID
 
@@ -107,6 +107,10 @@ object Element {
     e.e.map{case(d,v) => d.d -> v.map(_.v)}
   }
 
+  def toMapList(e: Element): Map[String, List[String]] = {
+    e.e.map{case(d,v) => d.d -> v.map(_.v).toList}
+  }
+
   def merge(dimensionValues: Iterable[Element]): Element = {
 
     val grouped: Map[Dimension, Iterable[(Dimension, Set[Value])]] = dimensionValues
@@ -132,7 +136,6 @@ case class JsonQuery(
   dimensions: List[String]
 ) {
   def toQuery = {
-
     Query(
       filter = Filter(
         filter.map{ and =>
@@ -147,6 +150,16 @@ case class JsonQuery(
       ),
       buckets = buckets.map(Bucket.apply),
       dimensions = dimensions.map(Dimension.apply)
+    )
+  }
+}
+
+object JsonQuery {
+  def fromQuery(query: Query) = {
+    JsonQuery(
+      query.filter.f.map(x => x.map(y => y.map{case(b,e) => b.b -> Element.toMapList(e)})),
+      query.buckets.map(_.b),
+      query.dimensions.map(_.d)
     )
   }
 }

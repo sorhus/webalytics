@@ -9,8 +9,9 @@
     <version>0.1.0</version>
     <modules>
         <module>common</module>
-        <module>post</module>
+        <module>service</module>
         <module>client</module>
+        <module>test</module>
     </modules>
     <packaging>pom</packaging>
 
@@ -29,7 +30,12 @@
             <dependency>
                 <groupId>com.github.sorhus.webalytics</groupId>
                 <artifactId>common</artifactId>
-                <version>${version}</version>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.sorhus.webalytics</groupId>
+                <artifactId>client</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>

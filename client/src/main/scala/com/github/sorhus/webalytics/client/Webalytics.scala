@@ -4,31 +4,25 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import akka.http.scaladsl.model.HttpMessage.DiscardedEntity
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.MediaTypes._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.stream.scaladsl.{Flow, Sink}
 import akka.util.ByteString
-import com.github.sorhus.webalytics.akka.model.{Dimension, Element, ElementId, Value}
-import org.json4s.{Formats, JValue}
-import org.json4s.jackson.{Json, Serialization}
-import spray.json.{DefaultJsonProtocol, RootJsonFormat}
+import com.github.sorhus.webalytics.model._
+import org.json4s.jackson.Serialization
+import spray.json.DefaultJsonProtocol
 
-import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success}
 import org.json4s.jackson.JsonMethods._
 
-object A extends App {
-  val w = new Webalytics
-  implicit val ec = w.executionContext
-  println(Await.result(w.getAll(), Duration.Inf))
+import scala.concurrent.duration.Duration
 
-  val batch = w.batchPost(List((ElementId(), Element.fromMap(Map("d1" -> Set("v1","v2"))))), "test")
-  Await.result(Future.sequence(batch), Duration.Inf)
+class QueryBuilder {
 
-  println(Await.result(w.getAll(), Duration.Inf))
 }
+
+
 
 class Webalytics extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val system = ActorSystem()
@@ -38,23 +32,25 @@ class Webalytics extends SprayJsonSupport with DefaultJsonProtocol {
 
   val url = "http://localhost:9000"
 
-  def getAll() = {
+  def getAll(): Map[String, Map[String, Map[String, Long]]] = {
     val flow: Flow[ByteString, Map[String, Map[String, Map[String, Long]]], NotUsed] = Flow[ByteString].map{bytes =>
       parse(bytes.utf8String)
         .extract[Map[String, Map[String, Map[String, Long]]]]
     }
 
-    Http().singleRequest(HttpRequest(HttpMethods.POST, uri = s"$url/count/all"))
+    val f = Http().singleRequest(HttpRequest(HttpMethods.POST, uri = s"$url/count/all"))
       .flatMap { response =>
         response.entity
           .dataBytes
           .via(flow)
           .runWith(Sink.head)
       }
+
+    Await.result(f, Duration.Inf)
   }
 
-  def batchPost(elements: Iterable[(ElementId, Element)], bucket: String, batchSize: Int = 10000): List[Future[DiscardedEntity]] = {
-    elements.grouped(batchSize)
+  def batchPost(elements: Iterable[(ElementId, Element)], bucket: String, batchSize: Int = 10000): Unit = {
+    val f = elements.grouped(batchSize)
       .map{batch =>
         val data = batch.toList.map{case(elementId, element) =>
           s"$elementId\t${Serialization.write(Element.toMap(element))})"
@@ -63,6 +59,26 @@ class Webalytics extends SprayJsonSupport with DefaultJsonProtocol {
           .map(_.discardEntityBytes(materializer))
       }
       .toList
+
+    Await.result(Future.sequence(f), Duration.Inf)
   }
 
+  def get(query: Query) = {
+    val flow: Flow[ByteString, Map[String, Map[String, Map[String, Long]]], NotUsed] = Flow[ByteString].map{bytes =>
+      parse(bytes.utf8String)
+        .extract[Map[String, Map[String, Map[String, Long]]]]
+    }
+
+    val data = Serialization.write(JsonQuery.fromQuery(query))
+    val f = Http().singleRequest(HttpRequest(HttpMethods.POST, uri = s"$url/count", entity = HttpEntity(`application/json`, data)))
+      .flatMap { response =>
+        response.entity
+          .dataBytes
+          .via(flow)
+          .runWith(Sink.head)
+      }
+
+    Await.result(f, Duration.Inf)
+
+  }
 }

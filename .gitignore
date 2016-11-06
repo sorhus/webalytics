@@ -9,6 +9,7 @@ data
 
 **/bundle.js
 **/bundle.js.map
+**/node_modules
 
 post/.DS_Store
 post/npm-debug.log
